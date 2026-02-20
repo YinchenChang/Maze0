@@ -1,0 +1,3406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maze Adventure</title>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #fff;
+    }
+
+    /* ── Character Selection Screen ─────────────────────────────────────── */
+    #charSelect {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+      padding: 48px 24px;
+    }
+    #charSelect h1 {
+      font-size: 2.4em;
+      color: #e94560;
+      letter-spacing: 3px;
+      text-shadow: 0 0 16px rgba(233,69,96,0.7);
+    }
+    #charSelect h2 {
+      font-size: 1.2em;
+      color: #bbb;
+      font-weight: normal;
+      letter-spacing: 1px;
+    }
+    #charGrid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+    }
+    #mazeGrid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+    .mazeCard {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 14px;
+      border: 3px solid transparent;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.07);
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 168px;
+    }
+    .mazeCard:hover {
+      background: rgba(255,255,255,0.14);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+    .mazeCard.selected {
+      border-color: #e94560;
+      background: rgba(233,69,96,0.18);
+      box-shadow: 0 0 18px rgba(233,69,96,0.5);
+    }
+    .mazeCard img {
+      width: 140px;
+      height: 88px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+    .mazeCard .mazeName {
+      font-size: 0.95em;
+      color: #ddd;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+    }
+    .sectionLabel {
+      font-size: 1.2em;
+      color: #bbb;
+      font-weight: normal;
+      letter-spacing: 1px;
+      align-self: flex-start;
+    }
+    .charCard {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 18px 14px;
+      border: 3px solid transparent;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.07);
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 136px;
+    }
+    .charCard:hover {
+      background: rgba(255,255,255,0.14);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+    .charCard.selected {
+      border-color: #e94560;
+      background: rgba(233,69,96,0.18);
+      box-shadow: 0 0 18px rgba(233,69,96,0.5);
+    }
+    .charCard img {
+      width: 84px;
+      height: 84px;
+      object-fit: cover;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.25);
+    }
+    .charCard .charEmoji { font-size: 3.2em; display: none; }
+    .charCard .charName {
+      font-size: 0.95em;
+      color: #ddd;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+    }
+    .charCard .charStat {
+      font-size: 0.72em;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: bold;
+      letter-spacing: 0.3px;
+    }
+    #startBtn {
+      padding: 14px 52px;
+      background: #e94560;
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 1.2em;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s, opacity 0.2s;
+      opacity: 0.4;
+      pointer-events: none;
+      letter-spacing: 1px;
+    }
+    #startBtn.ready {
+      opacity: 1;
+      pointer-events: all;
+    }
+    #startBtn.ready:hover { background: #c73652; transform: scale(1.04); }
+
+    /* ── Game Container ──────────────────────────────────────────────────── */
+    #gameContainer {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+    }
+    #gameContainer.show { display: flex; }
+    #gameContainer h1 {
+      font-size: 2em;
+      margin-bottom: 8px;
+      color: #e94560;
+      letter-spacing: 2px;
+      text-shadow: 0 0 12px rgba(233,69,96,0.6);
+    }
+    #ui {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 6px;
+      font-size: 1.05em;
+      background: rgba(255,255,255,0.08);
+      padding: 6px 20px;
+      border-radius: 20px;
+    }
+    #ui span { display: flex; align-items: center; gap: 4px; }
+    /* ── RPG UI ────────────────────────────────────────────────────────────── */
+    #xpRow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 3px;
+      width: 672px;
+    }
+    #xpBar {
+      flex: 1;
+      height: 8px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    #xpFill {
+      height: 100%;
+      background: linear-gradient(90deg, #ffe040, #ff9800);
+      border-radius: 4px;
+      width: 0%;
+      transition: width 0.3s;
+    }
+    #xpLabel { font-size: 0.72em; color: #aaa; white-space: nowrap; }
+    #effectsRow {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 3px;
+      min-height: 20px;
+    }
+    .effectBadge {
+      font-size: 0.75em;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.1);
+      display: none;
+    }
+    .effectBadge.active { display: inline-block; }
+    #fxSpeed  { color: #ffd700; border: 1px solid rgba(255,215,0,0.4); }
+    #fxShield { color: #4fc3f7; border: 1px solid rgba(79,195,247,0.4); }
+    #fxPower  { color: #ff7043; border: 1px solid rgba(255,112,67,0.4); }
+    #floorMod {
+      min-height: 18px;
+      font-size: 0.82em;
+      font-weight: bold;
+      letter-spacing: 1px;
+      margin-bottom: 3px;
+    }
+    #themeLabel {
+      margin-bottom: 5px;
+      font-size: 0.85em;
+      color: #aaa;
+      letter-spacing: 1.5px;
+    }
+    #gameWrapper { position: relative; width: 672px; height: 480px; display: inline-block; }
+    #glCanvas {
+      display: block;
+      position: absolute; top: 0; left: 0;
+      border: 3px solid #e94560;
+      border-radius: 4px;
+      box-shadow: 0 0 24px rgba(233,69,96,0.35);
+    }
+    #canvas {
+      display: block;
+      position: absolute; top: 0; left: 0;
+      background: transparent;
+      pointer-events: none;
+    }
+    #overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.82);
+      border-radius: 4px;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      z-index: 10;
+    }
+    #overlay.show { display: flex; }
+    #overlay h2 { font-size: 2.2em; margin-bottom: 8px; }
+    #overlay p  { font-size: 1.1em; color: #ccc; margin-bottom: 20px; }
+    #overlay button {
+      padding: 10px 30px;
+      background: #e94560;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #overlay button:hover { background: #c73652; }
+    #controls {
+      margin-top: 8px;
+      font-size: 0.8em;
+      color: #888;
+    }
+
+    /* ── Intro Screen ──────────────────────────────────────────────────────── */
+    #introScreen {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(180deg, #000010 0%, #0a0020 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      cursor: pointer;
+    }
+    #introCanvas {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Intro Screen ──────────────────────────────────────────────────── -->
+  <div id="introScreen">
+    <canvas id="introCanvas"></canvas>
+  </div>
+
+  <!-- ── Character Selection Screen ─────────────────────────────────────── -->
+  <div id="charSelect">
+    <h1>Maze Adventure</h1>
+    <span class="sectionLabel">Choose Your Character</span>
+    <div id="charGrid"></div>
+    <span class="sectionLabel">Choose Your World</span>
+    <div id="mazeGrid"></div>
+    <button id="startBtn">Start Adventure! ▶</button>
+  </div>
+
+  <!-- ── Game Container ────────────────────────────────────────────────── -->
+  <div id="gameContainer">
+    <h1>Maze Adventure</h1>
+    <div id="ui">
+      <span>❤️ Lives: <b id="uiLives">3</b></span>
+      <span>⭐ Level: <b id="uiLevel">1</b></span>
+      <span>🏆 Score: <b id="uiScore">0</b></span>
+      <span>✨ Rank: <b id="uiCharLevel">1</b></span>
+      <span>⚔️ Kills: <b id="uiKills">0</b></span>
+    </div>
+    <div id="xpRow">
+      <span id="xpLabel">XP 0 / 100</span>
+      <div id="xpBar"><div id="xpFill"></div></div>
+    </div>
+    <div id="effectsRow">
+      <span id="fxSpeed"  class="effectBadge">⚡ Sprint</span>
+      <span id="fxShield" class="effectBadge">🛡️ Shield</span>
+      <span id="fxPower"  class="effectBadge">⚔️ Power</span>
+    </div>
+    <div id="themeLabel"></div>
+    <div id="floorMod"></div>
+    <div id="gameWrapper">
+      <canvas id="glCanvas" width="672" height="480"></canvas>
+      <canvas id="canvas"   width="672" height="480"></canvas>
+      <div id="overlay">
+        <h2 id="ovTitle"></h2>
+        <p  id="ovText"></p>
+        <button id="ovBtn"></button>
+      </div>
+    </div>
+    <div id="controls">🖱 Mouse = look &nbsp;|&nbsp; W/S = forward/back &nbsp;|&nbsp; A/D = strafe &nbsp;|&nbsp; Q/E or ◀▶ = turn &nbsp;|&nbsp; <b>LClick / Space</b> = attack &nbsp;|&nbsp; <b>F</b> = ability &nbsp;|&nbsp; Step on 🌀 portal + <b>Space/Enter</b> to advance &nbsp;|&nbsp; Monsters attack automatically when adjacent</div>
+  </div>
+
+<script>
+// ─── Constants ────────────────────────────────────────────────────────────────
+const CELL  = 32;
+const COLS  = 21;
+const ROWS  = 21;
+let EXIT = { x: COLS - 2, y: ROWS - 2 };
+
+const MONSTER_BASE_INTERVAL = 420;
+
+// ─── 3-D / raycasting constants ───────────────────────────────────────────────
+const CANVAS_W  = COLS * CELL;   // 672 px
+const CANVAS_H  = 480;           // FPS viewport height
+const FOV       = Math.PI / 2.0; // 90° horizontal field-of-view
+const HALF_FOV  = FOV / 2;
+const MOVE_SPD  = 4.0;           // grid-units per second (forward/back)
+const TURN_SPD  = 2.4;           // radians per second
+const PLAYER_R  = 0.22;          // collision radius
+const MOUSE_SENS  = 0.0018;       // radians per pixel of mouse movement
+const TEX_SIZE    = 64;           // wall texture height (pixels)
+const WALL_TEX_W  = TEX_SIZE * 2; // texture canvas width: 2 visual variants side-by-side (128 px)
+const SKY_W       = CANVAS_W * 4; // 2688 px = full 360° panoramic sky width
+
+// ─── Canvas setup ─────────────────────────────────────────────────────────────
+const glCanvas = document.getElementById('glCanvas'); // WebGL / Three.js target
+const canvas   = document.getElementById('canvas');   // 2-D HUD overlay
+const ctx      = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// ─── Character definitions ────────────────────────────────────────────────────
+const CHARACTERS = [
+  { name: 'Rabbit',  src: 'Image/Character/Character_Rabbit.jpg',  emoji: '🐰',
+    stat: 'speed',   statLabel: '⚡ Speed+',    statColor: '#ffd700', statDesc: 'Move 20% faster' },
+  { name: 'Chicken', src: 'Image/Character/Character_Chicken.jpg', emoji: '🐔',
+    stat: 'lives',   statLabel: '❤️ Vitality',  statColor: '#ff6b6b', statDesc: 'Start with 4 lives' },
+  { name: 'Mouse',   src: 'Image/Character/Character_Mouse.jpg',   emoji: '🐭',
+    stat: 'luck',    statLabel: '🍀 Lucky',      statColor: '#4caf50', statDesc: '+3 items per floor' },
+  { name: 'Tiger',   src: 'Image/Character/Character_Tiger.jpg',   emoji: '🐯',
+    stat: 'defense', statLabel: '🛡️ Guard',     statColor: '#4fc3f7', statDesc: '2× invincibility' },
+];
+
+// ─── Maze themes ──────────────────────────────────────────────────────────────
+const MAZE_THEMES = [
+  {
+    name:          '🚀 Space',
+    src:           'Image/Maze/Maze1_Space.jpg',
+    solidBg:       '#07071e',          // fills the circle, hiding the image's orbital rings
+    wallColor:     'rgba(6, 6, 36, 0.94)',
+    wallShade:     'rgba(14, 14, 65, 0.86)',
+    wallHighlight: 'rgba(28, 28, 95, 0.80)',
+    floorTint:     'rgba(30, 30, 90, 0.55)',
+    borderColor:   '#4455ff',
+    shadowColor:   'rgba(68,85,255,0.4)',
+    wallRgb:    [40,  40, 160],
+    wallDkRgb:  [20,  20,  90],
+    ceilColor:  '#03030f',
+    floorColor: '#06060c',
+    ceilHor:    '#0a0a3a',   // horizon glow at mid-screen (ceiling gradient bottom)
+    floorHor:   '#0d0d28',   // horizon glow at mid-screen (floor gradient top)
+  },
+  {
+    name:          '🌿 Forest',
+    src:           'Image/Maze/Maze2_Green.jpg',
+    solidBg:       '#1b421b',          // replaces the image (which is all maze lines)
+    wallColor:     'rgba(8, 46, 8, 0.94)',
+    wallShade:     'rgba(4, 30, 4, 0.86)',
+    wallHighlight: 'rgba(18, 65, 18, 0.80)',
+    floorTint:     'rgba(100, 210, 100, 0.28)',
+    borderColor:   '#2ea832',
+    shadowColor:   'rgba(46,168,50,0.4)',
+    wallRgb:    [ 30, 100,  30],
+    wallDkRgb:  [ 15,  55,  15],
+    ceilColor:  '#0b1f0b',
+    floorColor: '#091509',
+    ceilHor:    '#1a4a18',   // dark canopy green near horizon
+    floorHor:   '#162e14',   // mossy ground glow near horizon
+  },
+  {
+    name:          '🍭 Candy',
+    src:           'Image/Maze/Maze3_Candy.jpg',
+    solidBg:       '#fce8f2',          // fills the circle, hiding the image's circular maze
+    wallColor:     'rgba(120, 8, 75, 0.94)',
+    wallShade:     'rgba(85, 4, 52, 0.86)',
+    wallHighlight: 'rgba(165, 15, 105, 0.80)',
+    floorTint:     'rgba(255, 200, 230, 0.55)',
+    borderColor:   '#ff4db8',
+    shadowColor:   'rgba(255,77,184,0.4)',
+    wallRgb:    [200,  20, 130],
+    wallDkRgb:  [110,  10,  70],
+    ceilColor:  '#280920',
+    floorColor: '#160410',
+    ceilHor:    '#5a1040',   // deep pink glow near horizon
+    floorHor:   '#3d0828',   // purple-pink ground glow near horizon
+  },
+];
+
+// ─── Item types ───────────────────────────────────────────────────────────────
+const ITEM_TYPES = [
+  { type: 'potion', emoji: '❤️', weight: 1 },   // restore 1 life
+  { type: 'sprint', emoji: '⚡', weight: 3 },   // 4s speed boost
+  { type: 'ward',   emoji: '🛡️', weight: 2 },  // 3s invincibility
+  { type: 'coin',   emoji: '💰', weight: 4 },   // bonus score
+  { type: 'power',  emoji: '⚔️', weight: 2 },   // 5s attack power-up
+];
+
+// ─── Monster type definitions ─────────────────────────────────────────────────
+//   baseHp    : HP at level 1 (scales up with level)
+//   speedMult : multiplier on monsterInterval (>1 = slower, so higher = tankier/slower)
+//   xpMult    : XP reward multiplier vs. base (20 × level)
+//   scoreMult : score reward multiplier vs. base (25 × level)
+const MONSTER_TYPES = [
+  { name: 'Spook',   src: 'Image/Monster/Monster1_Red.png',  emoji: '👾', baseHp: 1, speedMult: 1.0,  xpMult: 1.0, scoreMult: 1.0,
+    baseDamage: 20, abilityName: 'Shadow Bolt',    abilityEmoji: '💀', abilityMaxMp: 20, abilityMpRegen: 4, abilityCooldown: 3000 },
+  { name: 'Boca',    src: 'Image/Monster/Monster2_Boca.png', emoji: '👹', baseHp: 3, speedMult: 1.5,  xpMult: 2.5, scoreMult: 2.5,
+    baseDamage: 34, abilityName: 'Poison Cloud',   abilityEmoji: '☠️', abilityMaxMp: 30, abilityMpRegen: 3, abilityCooldown: 5000 },
+  { name: 'Crimson', src: 'Image/Monster/Monster3_Imp.png',  emoji: '👺', baseHp: 2, speedMult: 0.85, xpMult: 1.8, scoreMult: 1.8,
+    baseDamage: 27, abilityName: 'Inferno Strike', abilityEmoji: '🔥', abilityMaxMp: 25, abilityMpRegen: 5, abilityCooldown: 4000 },
+];
+
+// ─── Character attack definitions ────────────────────────────────────────────
+//   style: 'quick'  – Rabbit  – fast single-cell jab
+//          'wide'   – Chicken – hits target cell + 2 perpendicular cells (cone)
+//          'ranged' – Mouse   – piercing shot up to 3 cells until wall
+//          'heavy'  – Tiger   – 2 damage + knockback
+const CHAR_ATTACKS = [
+  { range: 1, damage: 1, cooldown: 350, style: 'quick',  emoji: '💨', label: 'Quick Strike' },
+  { range: 1, damage: 1, cooldown: 650, style: 'wide',   emoji: '🌀', label: 'Wing Slam'    },
+  { range: 3, damage: 1, cooldown: 500, style: 'ranged', emoji: '🎯', label: 'Swift Shot'   },
+  { range: 1, damage: 2, cooldown: 850, style: 'heavy',  emoji: '💥', label: 'Tiger Claw'   },
+];
+
+// ─── Class definitions ────────────────────────────────────────────────────────
+// baseStats: stats at charLevel 1.  growthStats: added per level above 1 (float, floored).
+const CLASS_DATA = [
+  { // Rabbit → Rogue
+    className: 'Rogue',
+    weapon: { name: 'Twin Daggers', emoji: '🗡️' },
+    primaryStat: 'dex',
+    baseStats:   { str: 3, dex: 8,  int: 4,  vit: 3 },
+    growthStats: { str: 0.5, dex: 1.5, int: 0.5, vit: 0.5 },
+    ability: { name: 'Backstab',     emoji: '🗡️', cost: 20, cooldown: 4000,
+               desc: '3× dmg to adjacent monster' },
+    passive: { name: 'Evasion',      desc: '20% dodge chance' },
+  },
+  { // Chicken → Warrior
+    className: 'Warrior',
+    weapon: { name: 'Broad Sword', emoji: '⚔️' },
+    primaryStat: 'vit',
+    baseStats:   { str: 7, dex: 4,  int: 2,  vit: 8 },
+    growthStats: { str: 1.2, dex: 0.6, int: 0.3, vit: 1.5 },
+    ability: { name: 'Battle Cry',   emoji: '📯', cost: 25, cooldown: 6000,
+               desc: '+2 ATK for 5 seconds' },
+    passive: { name: 'Shield Wall',  desc: 'Reduce damage taken by 1' },
+  },
+  { // Mouse → Mage
+    className: 'Mage',
+    weapon: { name: 'Arcane Staff', emoji: '🪄' },
+    primaryStat: 'int',
+    baseStats:   { str: 2, dex: 5,  int: 10, vit: 2 },
+    growthStats: { str: 0.3, dex: 0.8, int: 2.0, vit: 0.3 },
+    ability: { name: 'Fireball',     emoji: '🔥', cost: 30, cooldown: 5000,
+               desc: '3 dmg to all adjacent monsters' },
+    passive: { name: 'Arcane Flow',  desc: '2× mana regeneration' },
+  },
+  { // Tiger → Paladin
+    className: 'Paladin',
+    weapon: { name: 'Holy Sword', emoji: '✨' },
+    primaryStat: 'str',
+    baseStats:   { str: 8, dex: 4,  int: 5,  vit: 7 },
+    growthStats: { str: 1.4, dex: 0.5, int: 0.8, vit: 1.2 },
+    ability: { name: 'Divine Shield', emoji: '🛡️', cost: 35, cooldown: 8000,
+               desc: '3 s invincible + heal 25 HP' },
+    passive: { name: 'Holy Guard',   desc: 'Take 25% less damage' },
+  },
+];
+
+// ─── Floor modifiers (random each level after level 1) ────────────────────────
+const FLOOR_MODS = [
+  { id: 'none',    label: '',                  color: ''        },
+  { id: 'haste',   label: '⚡ Haste Floor',    color: '#ffd700' }, // everyone moves 25% faster
+  { id: 'swarm',   label: '👾 Swarm Floor',    color: '#ff4444' }, // +1 extra monster
+  { id: 'bounty',  label: '💎 Bounty Floor',   color: '#00e5ff' }, // 2× kill XP
+  { id: 'blessed', label: '✨ Blessed Floor',  color: '#c3ff68' }, // +2 extra items
+];
+
+// ─── Per-theme layout configs ─────────────────────────────────────────────────
+//   circular      : use circular maze generator + circular canvas clip
+//   playerStart   : grid cell where the player begins
+//   exit          : grid cell that is the goal
+//   monsterSpawns : ordered list of monster start positions (level n uses first n)
+const THEME_CONFIGS = [
+  // 0 – Space (circular)
+  {
+    circular:      true,
+    playerStart:   { x: 9,  y: 1  },
+    exit:          { x: 9,  y: 9  },
+    monsterSpawns: [{ x:19, y:9, type:0 }, { x:5, y:17, type:1 }, { x:15, y:17, type:2 }, { x:9, y:19, type:1 }],
+  },
+  // 1 – Forest (rectangular)
+  {
+    circular:      false,
+    playerStart:   { x: 1,  y: 1  },
+    exit:          { x:19,  y:19  },
+    monsterSpawns: [{ x:19, y:1, type:0 }, { x:1, y:19, type:1 }, { x:19, y:9, type:2 }, { x:11, y:11, type:1 }],
+  },
+  // 2 – Candy (circular)
+  {
+    circular:      true,
+    playerStart:   { x: 9,  y: 1  },
+    exit:          { x: 9,  y: 9  },
+    monsterSpawns: [{ x:19, y:9, type:0 }, { x:5, y:17, type:2 }, { x:15, y:17, type:1 }, { x:9, y:19, type:0 }],
+  },
+];
+
+// ─── Preload all images ────────────────────────────────────────────────────────
+const charImages = CHARACTERS.map(c => {
+  const img = new Image(); img.src = c.src; return img;
+});
+const mazeImages = MAZE_THEMES.map(t => {
+  const img = new Image(); img.src = t.src; return img;
+});
+// ─── Self-contained GIF decoder (no external libs, no DOM occlusion issues) ─
+function lzwDecode(data, minCS, maxOut) {
+  const clr = 1 << minCS, eof = clr + 1;
+  let cs = minCS + 1, nc = eof + 1;
+  const dict = [];
+  function reset() {
+    cs = minCS + 1; nc = eof + 1; dict.length = 0;
+    for (let i = 0; i < clr; i++) dict[i] = [i];
+    dict[clr] = null; dict[eof] = null;
+  }
+  reset();
+  const out = []; let buf = 0, cnt = 0, bp = 0, prev = null;
+  const read = () => {
+    while (cnt < cs && bp < data.length) { buf |= data[bp++] << cnt; cnt += 8; }
+    const code = buf & ((1 << cs) - 1); buf >>>= cs; cnt -= cs; return code;
+  };
+  while (out.length < maxOut) {
+    const code = read();
+    if (code === eof) break;
+    if (code === clr) { reset(); prev = null; continue; }
+    let entry;
+    if (code < nc && dict[code]) entry = dict[code].slice();
+    else if (code === nc && prev !== null) entry = [...dict[prev], dict[prev][0]];
+    else break;
+    for (const v of entry) { if (out.length < maxOut) out.push(v); }
+    if (prev !== null && nc < 4096) {
+      dict[nc++] = [...dict[prev], entry[0]];
+      if (nc === (1 << cs) && cs < 12) cs++;
+    }
+    prev = code;
+  }
+  return out;
+}
+function decodeGIF(buf) {
+  const b = new Uint8Array(buf); let p = 0;
+  if (b[0] !== 71 || b[1] !== 73 || b[2] !== 70) return null; // 'GIF'
+  p = 6;
+  const sw = b[p] | (b[p+1] << 8), sh = b[p+2] | (b[p+3] << 8); p += 4;
+  const fl = b[p++]; p += 2;
+  let gct = null;
+  if (fl >> 7) { const n = 2 << (fl & 7); gct = b.slice(p, p + n * 3); p += n * 3; }
+  const frames = []; let delay = 100, transIdx = -1;
+  // Accumulator canvas for disposal compositing
+  const acc = document.createElement('canvas'); acc.width = sw; acc.height = sh;
+  const ax = acc.getContext('2d');
+  while (p < b.length) {
+    const t = b[p++];
+    if (t === 0x3B) break; // trailer
+    if (t === 0x21) {      // extension
+      const lbl = b[p++];
+      if (lbl === 0xF9) {  // graphic control
+        p++;                // block size (always 4)
+        const gcefl = b[p++];
+        delay = (b[p] | (b[p+1] << 8)) * 10; p += 2;
+        transIdx = (gcefl & 1) ? b[p] : -1; p++;
+        p++;                // block terminator
+      } else {
+        let s; while ((s = b[p++]) > 0) p += s;
+      }
+    } else if (t === 0x2C) { // image descriptor
+      const fx = b[p] | (b[p+1] << 8), fy = b[p+2] | (b[p+3] << 8);
+      const fw = b[p+4] | (b[p+5] << 8), fh = b[p+6] | (b[p+7] << 8); p += 8;
+      const fl2 = b[p++]; let ct = gct;
+      if (fl2 >> 7) { const n = 2 << (fl2 & 7); ct = b.slice(p, p + n * 3); p += n * 3; }
+      const minCS = b[p++];
+      const raw = []; let s;
+      while ((s = b[p++]) > 0) { for (let i = 0; i < s; i++) raw.push(b[p++]); }
+      const pixels = lzwDecode(new Uint8Array(raw), minCS, fw * fh);
+      const imd = ax.createImageData(fw, fh); const d = imd.data;
+      for (let i = 0; i < pixels.length && i < fw * fh; i++) {
+        const ci = pixels[i];
+        if (ci !== transIdx && ct) {
+          d[i*4]   = ct[ci*3];
+          d[i*4+1] = ct[ci*3+1];
+          d[i*4+2] = ct[ci*3+2];
+          d[i*4+3] = 255;
+        }
+      }
+      ax.putImageData(imd, fx, fy);
+      const fc = document.createElement('canvas'); fc.width = sw; fc.height = sh;
+      fc.getContext('2d').drawImage(acc, 0, 0);
+      frames.push({ canvas: fc, delay: Math.max(20, delay) });
+      delay = 100; transIdx = -1;
+    }
+  }
+  return frames.length ? frames : null;
+}
+// ─── Monster animation state ──────────────────────────────────────────────────
+const monsterAnims = MONSTER_TYPES.map(() => ({ frames: [], frameIdx: 0, elapsed: 0 }));
+(function loadMonsterAnims() {
+  function fallback(src, anim) {
+    const img = new Image();
+    img.onload = () => {
+      // Store the Image element directly so the browser can draw it
+      // with native alpha transparency (avoids intermediate canvas re-compositing).
+      anim.frames = [{ imgEl: img, w: img.naturalWidth, h: img.naturalHeight, delay: 1000 }];
+    };
+    img.src = src;
+  }
+  MONSTER_TYPES.forEach((t, i) => {
+    const anim = monsterAnims[i];
+    if (!t.src.toLowerCase().endsWith('.gif')) { fallback(t.src, anim); return; }
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', t.src, true);
+    xhr.responseType = 'arraybuffer';
+    xhr.onload = () => {
+      const f = decodeGIF(xhr.response);
+      if (f) anim.frames = f;
+      else fallback(t.src, anim);
+    };
+    xhr.onerror = () => fallback(t.src, anim);
+    xhr.send();
+  });
+})();
+
+// ─── Stat helper functions ────────────────────────────────────────────────────
+function getPlayerStats() {
+  const cls = CLASS_DATA[selectedCharIdx];
+  if (!cls) return { str: 5, dex: 5, int: 5, vit: 5 };
+  const lvl = Math.max(0, charLevel - 1);
+  return {
+    str: Math.floor(cls.baseStats.str + cls.growthStats.str * lvl),
+    dex: Math.floor(cls.baseStats.dex + cls.growthStats.dex * lvl),
+    int: Math.floor(cls.baseStats.int + cls.growthStats.int * lvl),
+    vit: Math.floor(cls.baseStats.vit + cls.growthStats.vit * lvl),
+  };
+}
+function getPlayerMaxHp() {
+  const base = CLASS_DATA[selectedCharIdx]?.className === 'Warrior' ? 120 : 100;
+  return base + getPlayerStats().vit * 5;
+}
+function getPlayerMaxMp() {
+  return 50 + getPlayerStats().int * 8;
+}
+function getPlayerDamageBonus() {
+  return Math.floor(getPlayerStats().str / 4);
+}
+function getPlayerCooldownMult() {
+  return Math.max(0.5, 1 - Math.floor(getPlayerStats().dex / 5) * 0.05);
+}
+function getPlayerDodgeChance() {
+  return Math.min(0.35, getPlayerStats().dex * 0.012);
+}
+
+// ─── Procedural wall textures (WALL_TEX_W × TEX_SIZE, 2 variants per theme) ──
+// Each canvas is 128 px wide × 64 px tall.  Left 64 px = variant A, right = B.
+// Three.js wall material picks which 64-px strip to use via per-cell hash (→ 2 visual variants).
+const wallTextures = (() => {
+  const TS = TEX_SIZE, TW = WALL_TEX_W;   // 64, 128
+  function mk() {
+    const c = document.createElement('canvas'); c.width = TW; c.height = TS; return c;
+  }
+
+  // ── Space: navy metal panels ──────────────────────────────────────────────────
+  function makeSpaceTex() {
+    const c = mk(); const g = c.getContext('2d');
+
+    function panelBase(ox) {
+      // Base metal fill
+      g.fillStyle = ox === 0 ? '#080c28' : '#060922';
+      g.fillRect(ox, 0, TS, TS);
+      // Panel grid grooves (every 16 px)
+      g.strokeStyle = '#03040e'; g.lineWidth = 2;
+      for (let i = 0; i <= TS; i += 16) {
+        g.beginPath(); g.moveTo(ox + i, 0); g.lineTo(ox + i, TS); g.stroke();
+        g.beginPath(); g.moveTo(ox, i);     g.lineTo(ox + TS, i); g.stroke();
+      }
+      // Inner edge highlights
+      g.strokeStyle = 'rgba(30,40,140,0.60)'; g.lineWidth = 1;
+      for (let py = 0; py < TS; py += 16)
+        for (let px = 0; px < TS; px += 16)
+          g.strokeRect(ox + px + 2, py + 2, 12, 12);
+      // Scan-line sheen
+      for (let y = 0; y < TS; y += 4) {
+        g.fillStyle = `rgba(20,30,120,${y % 8 === 0 ? 0.18 : 0.06})`;
+        g.fillRect(ox, y, TS, 2);
+      }
+    }
+
+    // ─ Variant A (x 0–63): panels + rivets ──────────────────────────────────
+    panelBase(0);
+    for (let py = 0; py < TS; py += 16)
+      for (let px = 0; px < TS; px += 16)
+        [[3,3],[13,3],[3,13],[13,13]].forEach(([ox, oy]) => {
+          g.beginPath(); g.arc(px + ox, py + oy, 1.2, 0, Math.PI * 2);
+          g.fillStyle = '#3060e0'; g.fill();
+          g.beginPath(); g.arc(px + ox - 0.4, py + oy - 0.4, 0.5, 0, Math.PI * 2);
+          g.fillStyle = '#90b8ff'; g.fill();
+        });
+
+    // ─ Variant B (x 64–127): conduit pipe + circuit traces + indicator lights ─
+    panelBase(TS);
+    // Glowing blue conduit pipe running vertically along x ≈ TS + 4
+    const pipe = g.createLinearGradient(TS + 1, 0, TS + 9, 0);
+    pipe.addColorStop(0,   'rgba(0,90,220,0)');
+    pipe.addColorStop(0.35,'rgba(25,155,255,0.85)');
+    pipe.addColorStop(0.5, 'rgba(145,215,255,1.0)');
+    pipe.addColorStop(0.65,'rgba(25,155,255,0.85)');
+    pipe.addColorStop(1,   'rgba(0,90,220,0)');
+    g.fillStyle = pipe; g.fillRect(TS + 1, 0, 8, TS);
+    // Outer glow halo
+    const pHalo = g.createLinearGradient(TS - 6, 0, TS + 20, 0);
+    pHalo.addColorStop(0, 'rgba(0,70,200,0)');
+    pHalo.addColorStop(0.5,'rgba(0,70,200,0.20)');
+    pHalo.addColorStop(1, 'rgba(0,70,200,0)');
+    g.fillStyle = pHalo; g.fillRect(TS - 6, 0, 26, TS);
+    // Circuit traces (green)
+    g.strokeStyle = 'rgba(35,185,95,0.58)'; g.lineWidth = 1;
+    [[TS+12,10,TS+28,10,TS+28,18,TS+40,18],
+     [TS+14,34,TS+32,34],
+     [TS+12,52,TS+22,52,TS+22,46,TS+44,46]].forEach(pts => {
+      g.beginPath();
+      for (let k = 0; k < pts.length; k += 2)
+        k === 0 ? g.moveTo(pts[k], pts[k+1]) : g.lineTo(pts[k], pts[k+1]);
+      g.stroke();
+    });
+    // Indicator lights (green = on, red = off)
+    [[TS+40,18,true],[TS+44,46,true],[TS+32,34,false],[TS+20,52,true]].forEach(([lx,ly,on]) => {
+      g.beginPath(); g.arc(lx, ly, 1.4, 0, Math.PI * 2);
+      g.fillStyle = on ? '#00ff80' : '#ff3030'; g.fill();
+      const lg = g.createRadialGradient(lx, ly, 0, lx, ly, 5);
+      lg.addColorStop(0, on ? 'rgba(0,255,100,0.30)' : 'rgba(255,50,50,0.28)');
+      lg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = lg; g.fillRect(lx-5, ly-5, 10, 10);
+    });
+    // Warning chevron band at right side (x 54–62)
+    g.fillStyle = 'rgba(255,200,0,0.50)';
+    for (let y = 0; y < TS; y += 10) {
+      g.fillRect(TS + 54, y,     3, 2);
+      g.fillRect(TS + 57, y + 2, 3, 2);
+      g.fillRect(TS + 54, y + 4, 3, 2);
+      g.fillRect(TS + 57, y + 6, 3, 2);
+    }
+    return c;
+  }
+
+  // ── Forest: stone bricks ───────────────────────────────────────────────────
+  function makeForestTex() {
+    const c = mk(); const g = c.getContext('2d');
+    const BH = 8, BW = 16;
+
+    function drawBricks(ox, darkMult) {
+      g.fillStyle = `rgb(${Math.round(17*darkMult)},${Math.round(26*darkMult)},${Math.round(16*darkMult)})`;
+      g.fillRect(ox, 0, TS, TS);
+      for (let row = 0; row < TS / BH; row++) {
+        const stg = (row % 2) * (BW / 2);
+        for (let col = -1; col < TS / BW + 1; col++) {
+          const bx = col * BW + stg, by = row * BH;
+          const hash = (col * 7 + row * 13) & 0xff;
+          const luma = Math.round((55 + hash % 35) * darkMult);
+          const r = Math.round(luma * 0.60), gg = Math.round(luma * 0.72), b = Math.round(luma * 0.55);
+          g.fillStyle = `rgb(${r},${gg},${b})`;
+          g.fillRect(ox + bx + 1, by + 1, BW - 2, BH - 2);
+          // Top-left highlight
+          g.fillStyle = 'rgba(200,220,180,0.11)';
+          g.fillRect(ox + bx + 1, by + 1, BW - 2, 1);
+          g.fillRect(ox + bx + 1, by + 1, 1, BH - 2);
+          // Bottom-right shadow
+          g.fillStyle = 'rgba(0,0,0,0.27)';
+          g.fillRect(ox + bx + 1, by + BH - 2, BW - 2, 1);
+          g.fillRect(ox + bx + BW - 2, by + 1, 1, BH - 2);
+          // Moss patch
+          if (hash % 3 === 0) {
+            const mx = ox + bx + 2 + (hash % (BW - 8)), my = by + BH - 3;
+            g.fillStyle = 'rgba(30,110,15,0.55)';
+            g.fillRect(mx, my, 2 + hash % 4, 2);
+            g.fillStyle = 'rgba(50,150,20,0.40)';
+            g.fillRect(mx + 1, my - 1, 1 + hash % 2, 1);
+          }
+        }
+      }
+    }
+
+    // ─ Variant A (x 0–63): standard bricks ──────────────────────────────────
+    drawBricks(0, 1.0);
+
+    // ─ Variant B (x 64–127): darker/wetter bricks + hanging vines ───────────
+    drawBricks(TS, 0.76);
+    // Water-seep stain
+    g.fillStyle = 'rgba(0,22,0,0.38)'; g.fillRect(TS + 26, 0, 4, TS);
+    g.fillStyle = 'rgba(0,32,0,0.18)'; g.fillRect(TS + 22, 0, 12, TS);
+    // Hanging vines from top
+    g.strokeStyle = 'rgba(28,125,10,0.82)'; g.lineWidth = 1.5;
+    [[TS + 10, 20], [TS + 30, 32], [TS + 48, 18], [TS + 55, 27]].forEach(([vx, vl]) => {
+      g.beginPath(); g.moveTo(vx, 0);
+      for (let vy = 2; vy <= vl; vy += 2)
+        g.lineTo(vx + Math.sin(vy * 0.55) * 1.6, vy);
+      g.stroke();
+      // leaf
+      const lx = vx + Math.sin(vl * 0.55) * 1.6;
+      g.fillStyle = 'rgba(38,148,14,0.78)';
+      g.beginPath(); g.ellipse(lx, vl, 2.6, 1.5, 0.3, 0, Math.PI * 2); g.fill();
+    });
+    // Crack line
+    g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(TS + 43, 0); g.lineTo(TS + 41, 14); g.lineTo(TS + 44, 30);
+    g.lineTo(TS + 42, 48); g.lineTo(TS + 44, TS);
+    g.stroke();
+    return c;
+  }
+
+  // ── Candy: diagonal stripes + polka-dot panel ─────────────────────────────
+  function makeCandyTex() {
+    const c = mk(); const g = c.getContext('2d');
+
+    // ─ Variant A (x 0–63): diagonal candy-cane stripes ──────────────────────
+    g.fillStyle = '#fff0f4'; g.fillRect(0, 0, TS, TS);
+    g.save();
+    g.translate(TS / 2, TS / 2); g.rotate(Math.PI / 4);
+    const ST = 12;
+    for (let i = -TS * 2; i < TS * 2; i += ST) {
+      g.fillStyle = '#ff6eb0'; g.fillRect(i, -TS * 2, ST * 0.55, TS * 4);
+      g.fillStyle = '#e03080'; g.fillRect(i + ST * 0.55, -TS * 2, ST * 0.20, TS * 4);
+    }
+    g.restore();
+    // Gloss strip
+    const gl = g.createLinearGradient(0, 0, 0, TS * 0.22);
+    gl.addColorStop(0, 'rgba(255,255,255,0.55)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gl; g.fillRect(0, 0, TS, TS * 0.22);
+    // Sugar crystals
+    for (let i = 0; i < 24; i++) {
+      g.beginPath(); g.arc(((i * 29) % (TS - 4)) + 2, ((i * 37) % (TS - 4)) + 2, 0.9, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(255,255,255,0.75)'; g.fill();
+    }
+
+    // ─ Variant B (x 64–127): candy-button polka-dot panel ───────────────────
+    g.fillStyle = '#ffe8f4'; g.fillRect(TS, 0, TS, TS);
+    // Faint diagonal stripes behind dots
+    g.strokeStyle = 'rgba(255,160,200,0.22)'; g.lineWidth = 1.5;
+    for (let i = -TS; i < TS * 2; i += 10) {
+      g.beginPath(); g.moveTo(TS + i, 0); g.lineTo(TS + i + TS, TS); g.stroke();
+    }
+    // Candy buttons (colorful polka dots with gloss)
+    const dotCols = ['#ff4488','#ff88cc','#cc44ff','#44ccff','#ffcc44','#88ff44'];
+    [[10,10],[34,8],[52,12],[8,30],[28,26],[48,30],[14,48],[38,44],[58,52],[22,60],[44,57]].forEach(([dx,dy],i) => {
+      const col = dotCols[i % dotCols.length];
+      g.beginPath(); g.arc(TS + dx, dy, 5.5, 0, Math.PI * 2); g.fillStyle = col; g.fill();
+      const dg = g.createRadialGradient(TS + dx - 1.5, dy - 1.5, 0, TS + dx, dy, 5.5);
+      dg.addColorStop(0,   'rgba(255,255,255,0.55)');
+      dg.addColorStop(0.5, 'rgba(255,255,255,0.15)');
+      dg.addColorStop(1,   'rgba(0,0,0,0.10)');
+      g.fillStyle = dg; g.beginPath(); g.arc(TS + dx, dy, 5.5, 0, Math.PI * 2); g.fill();
+    });
+    return c;
+  }
+
+  return [makeSpaceTex(), makeForestTex(), makeCandyTex()];
+})();
+
+// ─── Sky panoramas (SKY_W × CANVAS_H/2, one per theme, scrolls with angle) ───
+const skyPanoramas = (() => {
+  const SH = Math.ceil(CANVAS_H / 2);
+
+  function mkC() {
+    const c = document.createElement('canvas'); c.width = SKY_W; c.height = SH; return c;
+  }
+  // Deterministic PRNG (fmix32 hash) – no Math.random() so panoramas are stable
+  function pr(n) {
+    let s = (Math.imul(n + 1, 0x9e3779b9)) >>> 0;
+    s ^= s >>> 16; s = Math.imul(s, 0x85ebca6b) >>> 0;
+    s ^= s >>> 13; s = Math.imul(s, 0xc2b2ae35) >>> 0;
+    return ((s ^ (s >>> 16)) >>> 0) / 0x100000000;
+  }
+  // Scatter n stars from a seeded sequence
+  function stars(g, n, seed, cols) {
+    for (let i = 0; i < n; i++) {
+      const x = pr(seed + i * 4)     * SKY_W;
+      const y = pr(seed + i * 4 + 1) * SH;
+      const r = pr(seed + i * 4 + 2) * 1.4 + 0.2;
+      const col = cols[Math.floor(pr(seed + i * 4 + 3) * cols.length)];
+      if (r > 1.0) {                                  // brighter stars: soft halo
+        const gr = g.createRadialGradient(x, y, 0, x, y, r * 3);
+        gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = gr; g.fillRect(x - r * 3, y - r * 3, r * 6, r * 6);
+      }
+      g.beginPath(); g.arc(x, y, r * 0.55, 0, Math.PI * 2);
+      g.fillStyle = col; g.fill();
+    }
+  }
+
+  // ── 0 Space: deep void, milky way, nebulae, star cluster ───────────────────
+  const spaceSky = mkC(); {
+    const g = spaceSky.getContext('2d');
+    const bg = g.createLinearGradient(0, 0, 0, SH);
+    bg.addColorStop(0, '#000008'); bg.addColorStop(1, '#04031c');
+    g.fillStyle = bg; g.fillRect(0, 0, SKY_W, SH);
+
+    // Milky way – diagonal haze band (line-by-line gradient)
+    for (let y = 0; y < SH; y++) {
+      const cx  = (y / SH) * SKY_W * 0.50 + SKY_W * 0.12;
+      const bw  = 110 + Math.sin(y * 0.07) * 46;
+      const alp = 0.08 + Math.sin(y * 0.05) * 0.030;
+      const mw  = g.createLinearGradient(cx - bw, y, cx + bw, y);
+      mw.addColorStop(0,    'rgba(180,160,255,0)');
+      mw.addColorStop(0.35, `rgba(190,170,255,${(alp * 0.65).toFixed(3)})`);
+      mw.addColorStop(0.5,  `rgba(218,200,255,${alp.toFixed(3)})`);
+      mw.addColorStop(0.65, `rgba(190,170,255,${(alp * 0.65).toFixed(3)})`);
+      mw.addColorStop(1,    'rgba(180,160,255,0)');
+      g.fillStyle = mw; g.fillRect(cx - bw, y, bw * 2, 1);
+    }
+    // Colour nebula blobs
+    [[SKY_W*0.10, SH*0.38, 68, 'rgba(65,25,155,0.14)'],
+     [SKY_W*0.33, SH*0.52, 55, 'rgba(25,65,175,0.12)'],
+     [SKY_W*0.50, SH*0.28, 80, 'rgba(155,25,85,0.10)'],
+     [SKY_W*0.72, SH*0.44, 62, 'rgba(25,105,155,0.09)'],
+     [SKY_W*0.88, SH*0.22, 48, 'rgba(95,25,175,0.13)'],
+    ].forEach(([x, y, r, col]) => {
+      const nb = g.createRadialGradient(x, y, 0, x, y, r);
+      nb.addColorStop(0, col); nb.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = nb; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    });
+    stars(g, 1400, 10, ['#ffffff','#fffde8','#e0e8ff','#ffd8c0','#c8e0ff']);
+    // Dense cluster along milky way band
+    for (let i = 0; i < 130; i++) {
+      const x = pr(9000+i*3) * SKY_W * 0.60 + SKY_W * 0.10;
+      const y = pr(9001+i*3) * SH;
+      g.beginPath(); g.arc(x, y, pr(9002+i*3) * 0.55 + 0.08, 0, Math.PI * 2);
+      g.fillStyle = `rgba(222,212,255,${(0.22 + pr(9003+i*3) * 0.58).toFixed(2)})`; g.fill();
+    }
+  }
+
+  // ── 1 Forest: night sky, moon, fireflies, tree silhouette ──────────────────
+  const forestSky = mkC(); {
+    const g = forestSky.getContext('2d');
+    const bg = g.createLinearGradient(0, 0, 0, SH);
+    bg.addColorStop(0, '#010912'); bg.addColorStop(0.70, '#061a20'); bg.addColorStop(1, '#0c2815');
+    g.fillStyle = bg; g.fillRect(0, 0, SKY_W, SH);
+
+    // Moon + soft glow halo
+    const mx = SKY_W * 0.62, my = SH * 0.22;
+    const moon = g.createRadialGradient(mx, my, 0, mx, my, 44);
+    moon.addColorStop(0,    'rgba(225,240,210,0.93)');
+    moon.addColorStop(0.13, 'rgba(205,228,188,0.60)');
+    moon.addColorStop(0.40, 'rgba(160,205,148,0.18)');
+    moon.addColorStop(1,    'rgba(0,0,0,0)');
+    g.fillStyle = moon; g.fillRect(mx - 44, my - 44, 88, 88);
+    g.beginPath(); g.arc(mx, my, 8.5, 0, Math.PI * 2); g.fillStyle = '#ddf2c8'; g.fill();
+    [[mx-3,my+2,2],[mx+4,my-3,1.5],[mx+2,my+5,1]].forEach(([cx,cy,cr]) => {
+      g.beginPath(); g.arc(cx, cy, cr, 0, Math.PI*2);
+      g.fillStyle = 'rgba(148,178,128,0.38)'; g.fill();
+    });
+
+    stars(g, 720, 20, ['#ffffff','#e8f5ff','#c8e4f0','#ffe8dd']);
+
+    // Fireflies near the tree line
+    for (let i = 0; i < 55; i++) {
+      const fx = pr(6000+i*2) * SKY_W, fy = SH * 0.48 + pr(6001+i*2) * SH * 0.48;
+      const fa = 0.28 + pr(6002+i*2) * 0.62;
+      const ff = g.createRadialGradient(fx, fy, 0, fx, fy, 3.5);
+      ff.addColorStop(0, `rgba(175,255,95,${fa})`); ff.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = ff; g.fillRect(fx - 3.5, fy - 3.5, 7, 7);
+      g.beginPath(); g.arc(fx, fy, 0.65, 0, Math.PI * 2);
+      g.fillStyle = `rgba(200,255,110,${fa})`; g.fill();
+    }
+
+    // Jagged tree-top silhouette
+    g.fillStyle = '#020c04';
+    g.beginPath(); g.moveTo(0, SH);
+    let tx = 0;
+    for (let ti = 0; tx < SKY_W + 30; ti++) {
+      const tw = 12 + pr(3000 + ti) * 25;
+      const th = SH * (0.18 + pr(3001 + ti) * 0.35);
+      g.lineTo(tx,          SH - SH * 0.04);
+      g.lineTo(tx + tw*0.25, SH - SH * 0.04);
+      g.lineTo(tx + tw*0.10, SH - th * 0.65);
+      g.lineTo(tx + tw*0.50, SH - th);
+      g.lineTo(tx + tw*0.90, SH - th * 0.65);
+      g.lineTo(tx + tw*0.75, SH - SH * 0.04);
+      tx += tw;
+    }
+    g.lineTo(SKY_W, SH); g.closePath(); g.fill();
+  }
+
+  // ── 2 Candy: deep magenta, pastel nebulae, sparkle bursts ──────────────────
+  const candySky = mkC(); {
+    const g = candySky.getContext('2d');
+    const bg = g.createLinearGradient(0, 0, 0, SH);
+    bg.addColorStop(0, '#0b0118'); bg.addColorStop(0.5, '#1e042e'); bg.addColorStop(1, '#380928');
+    g.fillStyle = bg; g.fillRect(0, 0, SKY_W, SH);
+
+    // Pastel nebula blobs
+    [[SKY_W*0.08, SH*0.42,  88, 'rgba(255,75,178,0.13)'],
+     [SKY_W*0.28, SH*0.22,  68, 'rgba(175,55,255,0.11)'],
+     [SKY_W*0.50, SH*0.55, 100, 'rgba(255,55,148,0.09)'],
+     [SKY_W*0.68, SH*0.35,  72, 'rgba(95,55,255,0.10)'],
+     [SKY_W*0.88, SH*0.45,  58, 'rgba(255,108,198,0.12)'],
+    ].forEach(([x, y, r, col]) => {
+      const nb = g.createRadialGradient(x, y, 0, x, y, r);
+      nb.addColorStop(0, col); nb.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = nb; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    });
+    const cCols = ['#ff8cd4','#bf80ff','#80d4ff','#ffffff','#ffff88','#ff88ff'];
+    stars(g, 680, 30, cCols);
+
+    // 4-pointed sparkle crosses
+    g.lineWidth = 0.75;
+    for (let i = 0; i < 38; i++) {
+      const sx = pr(5000+i*3) * SKY_W, sy = pr(5001+i*3) * SH;
+      const sr = 1.8 + pr(5002+i*3) * 2.8;
+      g.strokeStyle = cCols[i % cCols.length]; g.globalAlpha = 0.72;
+      g.beginPath(); g.moveTo(sx - sr*2.5, sy); g.lineTo(sx + sr*2.5, sy); g.stroke();
+      g.beginPath(); g.moveTo(sx, sy - sr*2.5); g.lineTo(sx, sy + sr*2.5); g.stroke();
+      g.beginPath(); g.moveTo(sx - sr*1.5, sy - sr*1.5); g.lineTo(sx + sr*1.5, sy + sr*1.5); g.stroke();
+      g.beginPath(); g.moveTo(sx + sr*1.5, sy - sr*1.5); g.lineTo(sx - sr*1.5, sy + sr*1.5); g.stroke();
+    }
+    g.globalAlpha = 1;
+  }
+
+  return [spaceSky, forestSky, candySky];
+})();
+
+// ─── Audio Engine (Web Audio API — all sounds synthesised, no files needed) ────
+const SFX = (() => {
+  let ctx = null, masterGain, bgmOut, sfxGain;
+  let bgmTheme = -1, bgmActive = false, bgmSeqIdx = 0, bgmTid = null;
+  let bgmVariant = 'explore';   // 'explore' | 'combat'
+  let bgmInCombat = false;      // last known combat state (for auto-switching)
+
+  // ── Background music data ──────────────────────────────────────────────────
+  // Each theme has an 'explore' (atmospheric) and 'combat' (intense) variant.
+  //
+  // chords   – chord progression: array of 3-note frequency triads
+  //            [root, fifth, upper] voiced in open position to avoid mud
+  // chordLen – beats each chord is held before moving to the next chord
+  // mel      – melody note sequence (Hz); loops, should equal chords.length × chordLen
+  // mWave    – oscillator type for the melody
+  // noteDur  – melody note length as fraction of one beat (staccato < 0.5 < legato)
+  //
+  // Chord frequency reference (Hz):
+  //   A2=110  Bb2=116.5  B2=123.5  C3=130.8  D3=146.8  E3=164.8
+  //   F3=174.6  G3=196   A3=220   Bb3=233.1  B3=246.9  C4=261.6
+  //   D4=293.7  E4=329.6  F4=349.2  G4=392   A4=440   C5=523.3
+  //   D5=587.3  E5=659.3  G5=784   A5=880   C6=1046.5
+  const BGM = [
+    { // ── 0  Space ──────────────────────────────────────────────────────────
+      // Progression: Am → F → G → Em  (i – ♭VI – ♭VII – v, A natural minor)
+      explore: {
+        bpm: 100, mWave: 'triangle', mVol: 0.11, padVol: 0.055, noteDur: 0.55, chordLen: 4,
+        chords: [
+          [110,  164.8, 220  ],  // Am  A2–E3–A3
+          [ 87.3, 130.8, 174.6], // F   F2–C3–F3
+          [ 98,   146.8, 196  ], // G   G2–D3–G3
+          [ 82.4, 123.5, 164.8], // Em  E2–B2–E3
+        ],
+        mel: [440, 523.3, 659.3, 523.3,  440, 392, 329.6, 440,
+              523.3, 659.3, 587.3, 523.3, 493.9, 440, 392, 440],
+      },
+      // Combat: Am → G → F → G  (faster, square wave, bass pulse on every beat)
+      combat: {
+        bpm: 158, mWave: 'square', mVol: 0.13, padVol: 0.065, noteDur: 0.40, chordLen: 2,
+        chords: [
+          [110,  164.8, 220  ],  // Am
+          [ 98,   146.8, 196  ], // G
+          [ 87.3, 130.8, 174.6], // F
+          [ 98,   146.8, 196  ], // G
+        ],
+        mel: [440, 659.3,  880, 784,  659.3, 587.3, 659.3, 440],
+      },
+    },
+    { // ── 1  Forest ─────────────────────────────────────────────────────────
+      // Progression: Dm → Bb → C → Am  (i – ♭VI – ♭VII – v, D natural minor)
+      explore: {
+        bpm: 112, mWave: 'triangle', mVol: 0.12, padVol: 0.06, noteDur: 0.52, chordLen: 4,
+        chords: [
+          [ 73.4, 110,   146.8],  // Dm  D2–A2–D3
+          [116.5, 174.6, 233.1],  // Bb  Bb2–F3–Bb3
+          [130.8, 196,   261.6],  // C   C3–G3–C4
+          [110,   164.8, 220  ],  // Am  A2–E3–A3
+        ],
+        mel: [293.7, 349.2, 440, 349.2, 293.7, 261.6, 220, 293.7,
+              349.2, 440, 523.3, 466.2, 440, 349.2, 329.6, 293.7],
+      },
+      // Combat: Dm → C → Bb → C  (sawtooth, driving bass pulse)
+      combat: {
+        bpm: 162, mWave: 'sawtooth', mVol: 0.13, padVol: 0.07, noteDur: 0.38, chordLen: 2,
+        chords: [
+          [ 73.4, 110,   146.8],  // Dm
+          [130.8, 196,   261.6],  // C
+          [116.5, 174.6, 233.1],  // Bb
+          [130.8, 196,   261.6],  // C
+        ],
+        mel: [293.7, 440,  587.3, 523.3,  440, 392, 440, 293.7],
+      },
+    },
+    { // ── 2  Candy ──────────────────────────────────────────────────────────
+      // Progression: C → Am → F → G  (I – vi – IV – V, C major)
+      explore: {
+        bpm: 128, mWave: 'square', mVol: 0.09, padVol: 0.05, noteDur: 0.45, chordLen: 4,
+        chords: [
+          [130.8, 196,   261.6],  // C   C3–G3–C4
+          [110,   164.8, 220  ],  // Am  A2–E3–A3
+          [ 87.3, 130.8, 174.6],  // F   F2–C3–F3
+          [ 98,   146.8, 196  ],  // G   G2–D3–G3
+        ],
+        mel: [523.3, 659.3, 784, 659.3,  523.3, 440, 392, 523.3,
+              659.3, 784, 880, 784,  659.3, 698.5, 784, 523.3],
+      },
+      // Combat: C → G → Am → G  (hyper-fast square, punchy bass)
+      combat: {
+        bpm: 188, mWave: 'square', mVol: 0.10, padVol: 0.055, noteDur: 0.33, chordLen: 2,
+        chords: [
+          [130.8, 196,   261.6],  // C
+          [ 98,   146.8, 196  ],  // G
+          [110,   164.8, 220  ],  // Am
+          [ 98,   146.8, 196  ],  // G
+        ],
+        mel: [523.3, 784,  1046.5, 987.8,  784, 659.3, 784, 523.3],
+      },
+    },
+    { // ── 3  Title Screen ───────────────────────────────────────────────────
+      // D natural minor — slow, epic, inviting  Dm → Am → Bb → C (i – v – ♭VI – ♭VII)
+      // Explore-only (no combat variant needed for title screen).
+      explore: {
+        bpm: 84, mWave: 'triangle', mVol: 0.22, padVol: 0.16, noteDur: 0.65, chordLen: 4,
+        chords: [
+          [ 73.4, 110,   146.8],  // Dm  D2–A2–D3
+          [110,   164.8, 220  ],  // Am  A2–E3–A3
+          [116.5, 174.6, 233.1],  // Bb  Bb2–F3–Bb3
+          [130.8, 196,   261.6],  // C   C3–G3–C4
+        ],
+        // Melody: slow, memorable RPG-title arc — D4 → F4 → A4 → C5 → Bb4 → A4 → F4 → D4 …
+        mel: [293.7, 349.2, 440, 523.3,  466.2, 440, 349.2, 293.7,
+              440,   523.3, 587.3, 523.3, 466.2, 440, 392,   349.2],
+      },
+      combat: {  // unused — title screen has no combat; mirrors explore so index is safe
+        bpm: 84, mWave: 'triangle', mVol: 0.22, padVol: 0.16, noteDur: 0.65, chordLen: 4,
+        chords: [
+          [ 73.4, 110,   146.8],
+          [110,   164.8, 220  ],
+          [116.5, 174.6, 233.1],
+          [130.8, 196,   261.6],
+        ],
+        mel: [293.7, 349.2, 440, 523.3,  466.2, 440, 349.2, 293.7,
+              440,   523.3, 587.3, 523.3, 466.2, 440, 392,   349.2],
+      },
+    },
+  ];
+
+  // ── Init ─────────────────────────────────────────────────────────────────────
+  // Returns a Promise that resolves when the AudioContext is actually running.
+  function boot() {
+    if (ctx) return ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = ctx.createGain(); masterGain.gain.value = 0.55; masterGain.connect(ctx.destination);
+    // BGM path: gain → lowpass filter → master (softens harsh waveforms)
+    const bgmFlt = ctx.createBiquadFilter(); bgmFlt.type = 'lowpass'; bgmFlt.frequency.value = 1800;
+    bgmOut = ctx.createGain(); bgmOut.gain.value = 0.50; bgmOut.connect(bgmFlt); bgmFlt.connect(masterGain);
+    sfxGain = ctx.createGain(); sfxGain.gain.value = 0.80; sfxGain.connect(masterGain);
+    return ctx.state === 'running' ? Promise.resolve() : ctx.resume();
+  }
+
+  // Resume (or create) AudioContext then start title BGM the moment it is running.
+  // Safe to call on page load (autoplay attempt) or from a user-gesture handler.
+  function bootAndPlayTitle() {
+    try { boot().then(() => { if (!bgmActive) startTitleBgm(); }).catch(() => {}); } catch(e) {}
+  }
+
+  function tryAutoplay() { bootAndPlayTitle(); }
+
+  // ── Low-level tone builders ─────────────────────────────────────────────────
+  function _osc(dest, freq, type, vol, dur, t, detune = 0) {
+    if (!ctx) return;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.value = freq; if (detune) o.detune.value = detune;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.01);
+  }
+
+  function _sweep(dest, f0, f1, type, vol, dur, t) {
+    if (!ctx) return;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.01);
+  }
+
+  function _noise(dest, vol, dur, t, lp = 1500) {
+    if (!ctx) return;
+    const frames = Math.ceil(ctx.sampleRate * (dur + 0.05));
+    const buf = ctx.createBuffer(1, frames, ctx.sampleRate);
+    const data = buf.getChannelData(0); for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource(), flt = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = buf; flt.type = 'lowpass'; flt.frequency.value = lp;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(flt); flt.connect(g); g.connect(dest); src.start(t); src.stop(t + dur + 0.05);
+  }
+
+  // ── BGM sequencer ───────────────────────────────────────────────────────────
+  function _bgmTick() {
+    if (!bgmActive || !ctx) return;
+    const theme = BGM[bgmTheme]; if (!theme) return;
+    const d    = theme[bgmVariant];
+    const beat = 60 / d.bpm, now = ctx.currentTime;
+
+    // Which chord in the progression are we on?
+    const chordIdx    = Math.floor(bgmSeqIdx / d.chordLen) % d.chords.length;
+    const beatInChord = bgmSeqIdx % d.chordLen;
+    const chord       = d.chords[chordIdx];
+
+    // ── Melody note ──
+    _osc(bgmOut, d.mel[bgmSeqIdx % d.mel.length], d.mWave, d.mVol, beat * d.noteDur, now);
+
+    // ── Pad chord (sine, held for full chord duration, triggered once per chord) ──
+    if (beatInChord === 0) {
+      const hold = beat * d.chordLen * 0.92;
+      chord.forEach((f, i) =>
+        _osc(bgmOut, f, 'sine', d.padVol * (i === 0 ? 1.5 : 1.0), hold, now));
+    }
+
+    // ── Combat bass pulse (square wave root on every beat — drives intensity) ──
+    if (bgmVariant === 'combat') {
+      _osc(bgmOut, chord[0], 'square', 0.08, beat * 0.22, now);
+    }
+
+    bgmSeqIdx++;
+    bgmTid = setTimeout(_bgmTick, beat * 1000);
+  }
+
+  function startBgm(themeIdx, combat = false) {
+    if (!ctx) return;
+    stopBgm();
+    bgmTheme   = themeIdx % BGM.length;
+    bgmVariant = combat ? 'combat' : 'explore';
+    bgmSeqIdx  = 0; bgmActive = true; _bgmTick();
+  }
+
+  function stopBgm() { bgmActive = false; clearTimeout(bgmTid); bgmTid = null; }
+
+  // Play the title-screen theme (index 3 in BGM)
+  function startTitleBgm() { startBgm(3, false); }
+
+  // Called each frame to auto-switch explore ↔ combat music when combatMode changes
+  function switchCombatBgm(inCombat) {
+    if (!ctx || !bgmActive || inCombat === bgmInCombat) return;
+    bgmInCombat = inCombat;
+    startBgm(bgmTheme, inCombat);
+  }
+
+  // ── Sound effects ───────────────────────────────────────────────────────────
+  function attack(style) {
+    if (!ctx) return; const t = ctx.currentTime;
+    if      (style === 'quick')  _sweep(sfxGain, 700, 180, 'sawtooth', 0.30, 0.10, t);
+    else if (style === 'wide')  { _noise(sfxGain, 0.30, 0.22, t, 900); _osc(sfxGain, 220, 'triangle', 0.15, 0.24, t); }
+    else if (style === 'ranged') _sweep(sfxGain, 950, 140, 'sawtooth', 0.32, 0.16, t);
+    else if (style === 'heavy') { _osc(sfxGain, 80, 'sine', 0.40, 0.22, t); _noise(sfxGain, 0.24, 0.14, t, 450); _osc(sfxGain, 160, 'square', 0.15, 0.10, t + 0.06); }
+  }
+
+  function monsterHit() {
+    if (!ctx) return; const t = ctx.currentTime;
+    _noise(sfxGain, 0.28, 0.08, t, 700); _osc(sfxGain, 280, 'square', 0.15, 0.06, t);
+  }
+
+  function monsterDie() {
+    if (!ctx) return; const t = ctx.currentTime;
+    [240, 190, 150].forEach((f, i) => _osc(sfxGain, f, 'sawtooth', 0.28 - i * 0.05, 0.10, t + i * 0.07));
+    _noise(sfxGain, 0.18, 0.26, t + 0.08, 600);
+  }
+
+  function playerHit() {
+    if (!ctx) return; const t = ctx.currentTime;
+    _noise(sfxGain, 0.40, 0.18, t, 350); _osc(sfxGain, 110, 'sine', 0.30, 0.28, t);
+  }
+
+  function pickupItem(type) {
+    if (!ctx) return; const t = ctx.currentTime;
+    switch (type) {
+      case 'coin':   _osc(sfxGain, 880, 'sine', 0.24, 0.10, t); _osc(sfxGain, 1109, 'sine', 0.18, 0.10, t + 0.09); break;
+      case 'potion': [523, 659, 784].forEach((f, i) => _osc(sfxGain, f, 'sine', 0.22, 0.14, t + i * 0.07)); break;
+      case 'sprint': _sweep(sfxGain, 350, 1200, 'sine', 0.24, 0.14, t); break;
+      case 'ward':   [660, 880, 1109, 880].forEach((f, i) => _osc(sfxGain, f, 'sine', 0.18, 0.11, t + i * 0.06)); break;
+      case 'power':  [220, 277, 330, 440].forEach((f, i) => _osc(sfxGain, f, 'sawtooth', 0.17, 0.18, t + i * 0.06)); break;
+      default:       _osc(sfxGain, 660, 'sine', 0.20, 0.10, t);
+    }
+  }
+
+  function rankUp() {
+    if (!ctx) return; const t = ctx.currentTime;
+    [523, 659, 784, 1047].forEach((f, i) => _osc(sfxGain, f, 'sine', 0.25, 0.20, t + i * 0.10));
+  }
+
+  function levelWin() {
+    if (!ctx) return; const t = ctx.currentTime;
+    [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => _osc(sfxGain, f, 'sine', 0.27, 0.18, t + i * 0.11));
+  }
+
+  function gameOverSfx() {
+    if (!ctx) return; const t = ctx.currentTime;
+    [220, 196, 175, 147].forEach((f, i) => _osc(sfxGain, f, 'sawtooth', 0.25, 0.36, t + i * 0.30));
+  }
+
+  function respawn() {
+    if (!ctx) return;
+    _sweep(sfxGain, 100, 400, 'sine', 0.18, 0.28, ctx.currentTime);
+  }
+
+  // ── Ability / spell SFX ──────────────────────────────────────────────────────
+  function abilityBackstab() {
+    if (!ctx) return; const t = ctx.currentTime;
+    _sweep(sfxGain, 1400, 280, 'sawtooth', 0.38, 0.10, t);
+    _noise(sfxGain, 0.22, 0.07, t + 0.03, 2200);
+    _sweep(sfxGain,  900, 180, 'sawtooth', 0.26, 0.09, t + 0.07);
+  }
+
+  function abilityBattleCry() {
+    if (!ctx) return; const t = ctx.currentTime;
+    [110, 138, 165].forEach((f, i) => _osc(sfxGain, f, 'sawtooth', 0.36 - i * 0.05, 0.48, t + i * 0.06));
+    _noise(sfxGain, 0.24, 0.38, t + 0.10, 500);
+    _sweep(sfxGain, 220, 440, 'square', 0.20, 0.30, t + 0.18);
+  }
+
+  function abilityFireball() {
+    if (!ctx) return; const t = ctx.currentTime;
+    _noise(sfxGain, 0.44, 0.30, t, 1800);
+    _sweep(sfxGain, 180, 900, 'sine', 0.28, 0.22, t + 0.04);
+    _noise(sfxGain, 0.24, 0.20, t + 0.16, 900);
+  }
+
+  function abilityDivineShield() {
+    if (!ctx) return; const t = ctx.currentTime;
+    [523, 659, 784, 1047, 1319].forEach((f, i) =>
+      _osc(sfxGain, f, 'sine', 0.22 - i * 0.02, 0.48 - i * 0.05, t + i * 0.09));
+    _osc(sfxGain, 2093, 'sine', 0.12, 0.32, t + 0.38);
+  }
+
+  function abilityShadowBolt() {
+    if (!ctx) return; const t = ctx.currentTime;
+    _sweep(sfxGain, 420, 70, 'sawtooth', 0.30, 0.22, t);
+    _noise(sfxGain, 0.16, 0.18, t + 0.06, 280);
+  }
+
+  function abilityPoisonCloud() {
+    if (!ctx) return; const t = ctx.currentTime;
+    _noise(sfxGain, 0.32, 0.38, t, 380);
+    _osc(sfxGain, 80, 'sine', 0.22, 0.42, t);
+    _sweep(sfxGain, 130, 55, 'sine', 0.16, 0.32, t + 0.16);
+  }
+
+  function abilityInfernoStrike() {
+    if (!ctx) return; const t = ctx.currentTime;
+    _noise(sfxGain, 0.50, 0.24, t, 1300);
+    _osc(sfxGain, 75, 'sine', 0.38, 0.30, t);
+    _sweep(sfxGain, 320, 55, 'sawtooth', 0.30, 0.26, t + 0.06);
+  }
+
+  return { boot, tryAutoplay, bootAndPlayTitle, startBgm, stopBgm, startTitleBgm, switchCombatBgm,
+           attack, monsterHit, monsterDie, playerHit, pickupItem, rankUp, levelWin, gameOverSfx, respawn,
+           abilityBackstab, abilityBattleCry, abilityFireball, abilityDivineShield,
+           abilityShadowBolt, abilityPoisonCloud, abilityInfernoStrike };
+})();
+
+// ─── Game state ───────────────────────────────────────────────────────────────
+let maze, player, monsters;
+let lives, score, level;
+let playerHp, playerMaxHp, maxLives;
+let gameOver, levelWon;
+let atPortal = false;
+let invincible, invincibleEnd;
+let combatMode = false;       // true while any monster is within melee range
+let combatEnemyTurnEnd = 0;  // timestamp until which it is the enemy's turn
+let monsterInterval;
+let selectedCharIdx = -1;
+let selectedMazeIdx = -1;
+let playerImg = null;
+let playerStart = { x: 1, y: 1 };
+// RPG state
+let charXP = 0, charLevel = 1, charXPToNext = 100;
+let items = [];
+let speedBoostEnd = 0;
+let floatingTexts = [];
+let currentThemeIdx = 0;
+let gameRunning = false;
+let lastTimestamp = 0;
+// Attack state
+let attackCooldownEnd = 0;
+let attacks = [];          // active attack flash animations
+let powerBoostEnd = 0;
+let killCount = 0;
+// ── Mana / ability state ───────────────────────────────────────────────────────
+let playerMp = 0, playerMaxMp = 50;
+let abilityCooldownEnd = 0;
+let battleCryEnd = 0, battleCryDmgBonus = 0;
+// ── Projectiles (monster ranged spells) ──────────────────────────────────────
+let projectiles = [];   // { x, y, dx, dy, elapsed, damage, emoji }
+// ── Visual effects (ability / spell animations) ───────────────────────────────
+let vfx = [];   // { startTs, dur, flashCol, flashA, emoji, emojiSz, ring, ringN, ringSz, ringR, glow }
+// ── Poison DoT state ─────────────────────────────────────────────────────────
+let poisonedEnd = 0, poisonDmg = 0, poisonNextTick = 0;
+let currentFloorMod = FLOOR_MODS ? FLOOR_MODS[0] : { id:'none', label:'', color:'' };
+let pendingRespawns = []; // { type, spawnX, spawnY, respawnAt }
+let pointerLocked = false;
+
+// ─── Three.js state ───────────────────────────────────────────────────────────
+let threeRenderer = null, threeScene, threeCamera;
+let mazeMeshGroup = null;
+
+// ─── Selection UI ─────────────────────────────────────────────────────────────
+const charGrid      = document.getElementById('charGrid');
+const mazeGrid      = document.getElementById('mazeGrid');
+const startBtn      = document.getElementById('startBtn');
+const charSelect    = document.getElementById('charSelect');
+const gameContainer = document.getElementById('gameContainer');
+
+
+function checkStartReady() {
+  if (selectedCharIdx >= 0 && selectedMazeIdx >= 0) {
+    startBtn.classList.add('ready');
+  } else {
+    startBtn.classList.remove('ready');
+  }
+}
+
+// Build character cards
+CHARACTERS.forEach((c, i) => {
+  const card = document.createElement('div');
+  card.className = 'charCard';
+
+  const img = document.createElement('img');
+  img.src = c.src;
+  img.alt = c.name;
+
+  const emojiDiv = document.createElement('div');
+  emojiDiv.className = 'charEmoji';
+  emojiDiv.textContent = c.emoji;
+
+  img.onerror = () => {
+    img.style.display = 'none';
+    emojiDiv.style.display = 'block';
+  };
+
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'charName';
+  nameSpan.textContent = c.name;
+
+  const statSpan = document.createElement('span');
+  statSpan.className = 'charStat';
+  statSpan.textContent = c.statLabel;
+  statSpan.style.cssText = `background:${c.statColor}22;color:${c.statColor};border:1px solid ${c.statColor}55`;
+
+  const atkSpan = document.createElement('span');
+  atkSpan.className = 'charStat';
+  const atkInfo = CHAR_ATTACKS[i];
+  atkSpan.textContent = `${atkInfo.emoji} ${atkInfo.label}`;
+  atkSpan.style.cssText = `background:rgba(255,112,67,0.12);color:#ff7043;border:1px solid rgba(255,112,67,0.3)`;
+
+  const clsData = CLASS_DATA[i];
+  const clsSpan = document.createElement('span');
+  clsSpan.className = 'charStat';
+  clsSpan.textContent = `${clsData.weapon.emoji} ${clsData.className}`;
+  clsSpan.style.cssText = `background:rgba(100,180,255,0.12);color:#90caf9;border:1px solid rgba(100,180,255,0.3)`;
+
+  const abilSpan = document.createElement('span');
+  abilSpan.className = 'charStat';
+  abilSpan.textContent = `${clsData.ability.emoji} ${clsData.ability.name}`;
+  abilSpan.style.cssText = `background:rgba(180,100,255,0.12);color:#ce93d8;border:1px solid rgba(180,100,255,0.3)`;
+
+  card.title = `${c.statDesc}\n${clsData.passive.name}: ${clsData.passive.desc}\n[F] ${clsData.ability.name}: ${clsData.ability.desc}`;
+
+  card.appendChild(img);
+  card.appendChild(emojiDiv);
+  card.appendChild(nameSpan);
+  card.appendChild(clsSpan);
+  card.appendChild(statSpan);
+  card.appendChild(atkSpan);
+  card.appendChild(abilSpan);
+
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.charCard').forEach(el => el.classList.remove('selected'));
+    card.classList.add('selected');
+    selectedCharIdx = i;
+    playerImg = charImages[i];
+    checkStartReady();
+  });
+
+  charGrid.appendChild(card);
+});
+
+// Build maze cards
+MAZE_THEMES.forEach((t, i) => {
+  const card = document.createElement('div');
+  card.className = 'mazeCard';
+
+  const img = document.createElement('img');
+  img.src = t.src;
+  img.alt = t.name;
+  img.onerror = () => { img.style.display = 'none'; };
+
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'mazeName';
+  nameSpan.textContent = t.name;
+
+  card.appendChild(img);
+  card.appendChild(nameSpan);
+
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.mazeCard').forEach(el => el.classList.remove('selected'));
+    card.classList.add('selected');
+    selectedMazeIdx = i;
+    checkStartReady();
+  });
+
+  mazeGrid.appendChild(card);
+});
+
+startBtn.addEventListener('click', () => {
+  if (selectedCharIdx < 0 || selectedMazeIdx < 0) return;
+  SFX.boot();
+  charSelect.style.display = 'none';
+  gameContainer.classList.add('show');
+  const char = CHARACTERS[selectedCharIdx];
+  lives       = char.stat === 'lives' ? 4 : 3;   // Chicken (Warrior) starts with 4
+  maxLives    = lives;
+  score = 0; level = 1;
+  charXP = 0; charLevel = 1; charXPToNext = 100;
+  playerMaxHp = getPlayerMaxHp();
+  playerHp    = playerMaxHp;
+  playerMaxMp = getPlayerMaxMp();
+  playerMp    = playerMaxMp;
+  abilityCooldownEnd = 0; battleCryEnd = 0; battleCryDmgBonus = 0;
+  poisonedEnd = 0; poisonDmg = 0; poisonNextTick = 0;
+  if (!threeRenderer) initThreeJS();
+  initGame();
+  lastTimestamp = 0;
+  gameRunning = true;
+  requestAnimationFrame(loop);
+});
+
+// ─── Maze generation (recursive backtracking) ─────────────────────────────────
+function generateMaze() {
+  maze = Array.from({ length: ROWS }, () => new Uint8Array(COLS).fill(1));
+
+  function carve(x, y) {
+    maze[y][x] = 0;
+    for (const [dx, dy] of shuffle([[0,-2],[0,2],[-2,0],[2,0]])) {
+      const nx = x + dx, ny = y + dy;
+      if (nx > 0 && nx < COLS-1 && ny > 0 && ny < ROWS-1 && maze[ny][nx] === 1) {
+        maze[y + dy/2][x + dx/2] = 0;
+        carve(nx, ny);
+      }
+    }
+  }
+
+  carve(1, 1);
+  maze[EXIT.y][EXIT.x] = 0;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ─── Circular maze generation ─────────────────────────────────────────────────
+// Carves a perfect maze within the circular boundary (radius 9.5 cells,
+// centred at (10,10) on the 21×21 grid).  Uses the same recursive
+// backtracking as generateMaze() but restricted to cells inside the circle.
+function generateCircularMaze() {
+  const CX = Math.floor(COLS / 2); // 10
+  const CY = Math.floor(ROWS / 2); // 10
+  const R  = 9.5;
+
+  maze = Array.from({ length: ROWS }, () => new Uint8Array(COLS).fill(1));
+
+  function inCircle(x, y) {
+    return Math.hypot(x - CX, y - CY) <= R;
+  }
+
+  // Recursive DFS – visits every odd-coordinate cell within the circle.
+  // We start from the exit cell (9,9) so it is always carved open first.
+  function carve(x, y) {
+    maze[y][x] = 0;
+    for (const [dx, dy] of shuffle([[0,-2],[0,2],[-2,0],[2,0]])) {
+      const nx = x + dx, ny = y + dy;
+      if (nx > 0 && nx < COLS - 1 && ny > 0 && ny < ROWS - 1
+          && maze[ny][nx] === 1 && inCircle(nx, ny)) {
+        maze[y + dy/2][x + dx/2] = 0; // open wall between cells
+        carve(nx, ny);
+      }
+    }
+  }
+
+  carve(CX - 1, CY - 1); // (9,9) — the exit cell
+}
+
+// ─── Monster BFS pathfinding ──────────────────────────────────────────────────
+function bfsNext(mx, my, tx, ty) {
+  if (mx === tx && my === ty) return null;
+  const visited = Array.from({ length: ROWS }, () => new Uint8Array(COLS));
+  visited[my][mx] = 1;
+  const queue = [{ x: mx, y: my, first: null }];
+  const dirs  = [[0,1],[0,-1],[1,0],[-1,0]];
+
+  while (queue.length) {
+    const { x, y, first } = queue.shift();
+    for (const [dx, dy] of dirs) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+      if (visited[ny][nx] || maze[ny][nx] === 1) continue;
+      visited[ny][nx] = 1;
+      const step = first ?? { x: nx, y: ny };
+      if (nx === tx && ny === ty) return step;
+      queue.push({ x: nx, y: ny, first: step });
+    }
+  }
+  return null;
+}
+
+// ─── Spawn monsters ───────────────────────────────────────────────────────────
+function makeMonster(spawnCell, baseInterval) {
+  const t      = MONSTER_TYPES[spawnCell.type ?? 0];
+  const hp     = Math.max(1, Math.round(t.baseHp  * (1 + 0.5 * (level - 1))));
+  const damage = Math.max(1, Math.round(t.baseDamage * (1 + 0.2 * (level - 1))));
+  return {
+    x: spawnCell.x,  y: spawnCell.y,
+    hp, maxHp: hp,
+    damage,
+    type:   spawnCell.type ?? 0,
+    spawnX: spawnCell.x, spawnY: spawnCell.y,
+    moveTimer:    Math.random() * baseInterval, // stagger so they don't all step together
+    moveInterval: baseInterval * t.speedMult,
+    isAdjacent:   false,
+    mp: 0, maxMp: t.abilityMaxMp, mpRegen: t.abilityMpRegen, abilityCooldownEnd: 0,
+    attackInterval: Math.round(1800 / t.speedMult),   // ms between melee hits
+    attackCooldownEnd: Math.random() * 1000,           // stagger first hit
+  };
+}
+
+function spawnMonsters(spawns) {
+  monsters = [];
+  pendingRespawns = [];
+  let count = Math.min(1 + level, 3);  // base: up to 3 monsters
+  if (currentFloorMod && currentFloorMod.id === 'swarm') count = Math.min(count + 1, spawns.length);
+  for (let i = 0; i < count; i++) {
+    const m = makeMonster(spawns[i], monsterInterval);
+    monsters.push(m);
+    // Sprite created later in rebuildAllSprites() (called at end of initGame)
+  }
+}
+
+// ─── RPG: Item spawning ───────────────────────────────────────────────────────
+function spawnItems() {
+  items = [];
+  // All walkable floor cells except player start and exit
+  const floor = [];
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      if (maze[y][x] !== 0) continue;
+      if (x === playerStart.x && y === playerStart.y) continue;
+      if (x === EXIT.x       && y === EXIT.y)       continue;
+      floor.push({ x, y });
+    }
+  }
+  shuffle(floor);
+  let count = 3 + Math.floor(level / 2);
+  if (CHARACTERS[selectedCharIdx].stat === 'luck') count += 3; // Mouse bonus
+  if (currentFloorMod && currentFloorMod.id === 'blessed') count += 2;
+  count = Math.min(count, floor.length);
+
+  const totalW = ITEM_TYPES.reduce((s, t) => s + t.weight, 0);
+  for (let i = 0; i < count; i++) {
+    let r = Math.random() * totalW;
+    let picked = ITEM_TYPES[ITEM_TYPES.length - 1];
+    for (const t of ITEM_TYPES) { r -= t.weight; if (r <= 0) { picked = t; break; } }
+    items.push({ x: floor[i].x, y: floor[i].y, type: picked.type, emoji: picked.emoji });
+  }
+}
+
+// ─── RPG: XP & ranking ────────────────────────────────────────────────────────
+function addFloatingText(x, y, text, color) {
+  floatingTexts.push({ x, y, text, color, life: 1.0 });
+}
+
+function updateXpBar() {
+  const pct = Math.min(charXP / charXPToNext * 100, 100);
+  document.getElementById('xpFill').style.width = pct + '%';
+  document.getElementById('xpLabel').textContent = `XP ${charXP} / ${charXPToNext}`;
+  document.getElementById('uiCharLevel').textContent = charLevel;
+}
+
+function checkCharLevelUp() {
+  while (charXP >= charXPToNext) {
+    charXP -= charXPToNext;
+    charLevel++;
+    charXPToNext = 100 * charLevel;
+    lives = Math.min(lives + 1, 6);
+    // Recalculate HP/MP based on new stats
+    const prevMaxHp = playerMaxHp;
+    playerMaxHp = getPlayerMaxHp();
+    playerHp    = Math.min(playerMaxHp, playerHp + (playerMaxHp - prevMaxHp));
+    playerMaxMp = getPlayerMaxMp();
+    playerMp    = Math.min(playerMaxMp, playerMp + 20);
+    updateUI();
+    addFloatingText(CANVAS_W / 2, CANVAS_H / 3, `✨ Rank Up!  Lv.${charLevel}`, '#ffe040');
+    const s = getPlayerStats();
+    addFloatingText(CANVAS_W / 2, CANVAS_H / 3 + 22,
+      `STR:${s.str}  DEX:${s.dex}  INT:${s.int}  VIT:${s.vit}`, '#ffd700');
+    SFX.rankUp();
+  }
+  updateXpBar();
+}
+
+// ─── RPG: Item collection ─────────────────────────────────────────────────────
+function collectItem(item, ts) {
+  charXP += 15;
+  SFX.pickupItem(item.type);
+  let text, color;
+  switch (item.type) {
+    case 'potion':
+      lives = Math.min(lives + 1, 6);
+      updateUI();
+      text = '❤️ +1 Life!';       color = '#ff6b6b'; break;
+    case 'sprint':
+      speedBoostEnd = Math.max(speedBoostEnd, ts + 4000);
+      text = '⚡ Sprint!';         color = '#ffd700'; break;
+    case 'ward':
+      invincible    = true;
+      invincibleEnd = Math.max(invincibleEnd, ts + 3000);
+      text = '🛡️ Ward!';          color = '#4fc3f7'; break;
+    case 'coin':
+      score += 30 * level;
+      updateUI();
+      text = `💰 +${30 * level}`; color = '#ffd700'; break;
+    case 'power':
+      powerBoostEnd = Math.max(powerBoostEnd, ts + 5000);
+      text = '⚔️ Power Up!';      color = '#ff7043'; break;
+  }
+  addFloatingText(CANVAS_W / 2, CANVAS_H / 2 - 30, text, color);
+  checkCharLevelUp();
+}
+
+// ─── Combat damage helper (used by both monster initiative and counter-attack) ─
+function applyDamageToPlayer(dmg, ts) {
+  if (invincible && ts < invincibleEnd) return;
+  const cls = CLASS_DATA[selectedCharIdx];
+  // ── Class passive damage modifiers ──────────────────────────────────────────
+  if (cls) {
+    if (cls.className === 'Rogue'   && Math.random() < getPlayerDodgeChance()) {
+      addFloatingText(CANVAS_W / 2, CANVAS_H / 2 + 20, 'Dodge!', '#ffd700');
+      return;
+    }
+    if (cls.className === 'Warrior')  dmg = Math.max(0, dmg - 1);
+    if (cls.className === 'Paladin')  dmg = Math.max(0, Math.round(dmg * 0.75));
+  }
+  if (dmg <= 0) return;
+  playerHp = Math.max(0, playerHp - dmg);
+  SFX.playerHit();
+  addFloatingText(CANVAS_W / 2, CANVAS_H / 2 + 20, `-${dmg}`, '#ff6644');
+  if (playerHp <= 0) {
+    playerHp      = playerMaxHp;
+    invincible    = true;
+    invincibleEnd = ts + (cls?.className === 'Paladin' ? 4400 : 2200);
+    SFX.respawn();
+    addFloatingText(CANVAS_W / 2, CANVAS_H / 3, '💀 Respawned!', '#ff2222');
+  } else {
+    invincible    = true;
+    invincibleEnd = ts + 500;  // 500 ms grace prevents multi-hit in same turn
+  }
+}
+
+// ─── Attack ───────────────────────────────────────────────────────────────────
+function tryAttack(ts) {
+  if (!gameRunning || gameOver || levelWon) return;
+  if (ts < attackCooldownEnd) return;
+
+  const atk     = CHAR_ATTACKS[selectedCharIdx];
+  const extraDmg = (powerBoostEnd > ts ? 1 : 0)
+                 + getPlayerDamageBonus()
+                 + (battleCryEnd > ts ? battleCryDmgBonus : 0);
+  const dmg     = atk.damage + extraDmg;
+  const bountyMult = (currentFloorMod && currentFloorMod.id === 'bounty') ? 2 : 1;
+  attackCooldownEnd = ts + Math.round(atk.cooldown * getPlayerCooldownMult());
+  SFX.attack(atk.style);
+
+  const [dx, dy] = getAttackDir();
+  const px = Math.floor(player.x), py = Math.floor(player.y);
+
+  // Build list of cells this attack hits
+  const hitCells = [];
+  if (atk.style === 'wide') {
+    // Chicken: target cell + 2 perpendicular adjacents (cone)
+    hitCells.push({ x: px + dx,     y: py + dy     });
+    if (dx === 0) {  // vertical swing → hit left & right of target row
+      hitCells.push({ x: px + 1, y: py + dy });
+      hitCells.push({ x: px - 1, y: py + dy });
+    } else {          // horizontal swing → hit above & below target column
+      hitCells.push({ x: px + dx, y: py + 1 });
+      hitCells.push({ x: px + dx, y: py - 1 });
+    }
+  } else if (atk.style === 'ranged') {
+    // Mouse: travels up to 3 cells, stops at wall
+    for (let r = 1; r <= atk.range; r++) {
+      const cx = px + dx * r, cy = py + dy * r;
+      if (!canMove(cx, cy)) break;
+      hitCells.push({ x: cx, y: cy });
+    }
+  } else {
+    // Rabbit (quick) & Tiger (heavy): single cell in front
+    hitCells.push({ x: px + dx, y: py + dy });
+  }
+
+  // Always include the player's own cell so a monster that has walked on top of
+  // the player (triggering collision damage) can still be hit when attacking.
+  hitCells.push({ x: px, y: py });
+
+  // Apply damage to monsters in hit cells
+  for (const cell of hitCells) {
+    for (let i = monsters.length - 1; i >= 0; i--) {
+      const m = monsters[i];
+      if (m.x !== cell.x || m.y !== cell.y) continue;
+
+      m.hp -= dmg;
+      if (m.hp <= 0) {
+        // Monster killed
+        const mt       = MONSTER_TYPES[m.type];
+        const xpGain   = Math.round(20 * level * mt.xpMult * bountyMult);
+        const scoreGain = Math.round(25 * level * mt.scoreMult);
+        charXP += xpGain;
+        score  += scoreGain;
+        killCount++;
+        updateUI();
+        SFX.monsterDie();
+        addFloatingText(CANVAS_W / 2, CANVAS_H / 2 - 60, `💀 +${xpGain}XP`, '#ff9800');
+        // 40% chance to drop a random item at the monster's position
+        if (Math.random() < 0.4) {
+          const totalW = ITEM_TYPES.reduce((s, t) => s + t.weight, 0);
+          let r = Math.random() * totalW;
+          let picked = ITEM_TYPES[ITEM_TYPES.length - 1];
+          for (const t of ITEM_TYPES) { r -= t.weight; if (r <= 0) { picked = t; break; } }
+          const dropped = { x: m.x, y: m.y, type: picked.type, emoji: picked.emoji };
+          items.push(dropped);
+          if (threeRenderer) createSprite(dropped, dropped.x + 0.5, dropped.y + 0.5, 0.6, true);
+        }
+        // Schedule respawn at original spawn point
+        const respawnDelay = Math.max(5000, 12000 - level * 600);
+        pendingRespawns.push({ type: m.type, spawnX: m.spawnX, spawnY: m.spawnY, respawnAt: ts + respawnDelay });
+        if (threeRenderer) removeSprite(m);
+        monsters.splice(i, 1);
+        checkCharLevelUp();
+      } else {
+        SFX.monsterHit();
+        addFloatingText(CANVAS_W / 2, CANVAS_H / 2 - 40, `⚔️ -${dmg}`, '#ff6b35');
+        // Tiger: knockback surviving monster one cell away from player
+        if (atk.style === 'heavy') {
+          const kbx = m.x + dx, kby = m.y + dy;
+          if (canMove(kbx, kby) && !monsters.some(o => o.x === kbx && o.y === kby)) {
+            m.x = kbx; m.y = kby;
+          }
+        }
+      }
+    }
+  }
+
+  // Push attack flash animation
+  attacks.push({ cells: hitCells, emoji: atk.emoji, life: 0.8 });
+}
+
+// ─── Three.js renderer ────────────────────────────────────────────────────────
+
+function initThreeJS() {
+  threeRenderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true });
+  threeRenderer.setSize(CANVAS_W, CANVAS_H);
+  threeRenderer.setPixelRatio(1);
+
+  threeScene = new THREE.Scene();
+
+  // Convert horizontal FOV (π/2 = 90°) to vertical FOV for Three.js PerspectiveCamera
+  const aspect  = CANVAS_W / CANVAS_H;
+  const vFovDeg = 2 * Math.atan(Math.tan(FOV / 2) / aspect) * 180 / Math.PI;
+  threeCamera = new THREE.PerspectiveCamera(vFovDeg, aspect, 0.05, 50);
+
+  threeScene.add(new THREE.AmbientLight(0xffffff, 0.65));
+  const pl = new THREE.PointLight(0xffffff, 0.7, 12);
+  pl.name = 'playerLight';
+  threeScene.add(pl);
+}
+
+function buildMazeGeometry() {
+  // Dispose previous group
+  if (mazeMeshGroup) {
+    threeScene.remove(mazeMeshGroup);
+    mazeMeshGroup.traverse(o => {
+      if (o.isInstancedMesh || o.isMesh) {
+        o.geometry.dispose();
+        [].concat(o.material).forEach(m => { m.map && m.map.dispose(); m.dispose(); });
+      }
+    });
+  }
+  mazeMeshGroup = new THREE.Group();
+  threeScene.add(mazeMeshGroup);
+
+  const theme  = MAZE_THEMES[currentThemeIdx];
+  const texSrc = wallTextures[currentThemeIdx]; // existing 128×64 HTMLCanvasElement
+
+  function makeWallTex(offsetU) {
+    const t = new THREE.CanvasTexture(texSrc);
+    t.minFilter = t.magFilter = THREE.NearestFilter;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.offset.set(offsetU, 0);
+    t.repeat.set(0.5, 1);
+    return t;
+  }
+  const matA = new THREE.MeshLambertMaterial({ map: makeWallTex(0.0) });
+  const matB = new THREE.MeshLambertMaterial({ map: makeWallTex(0.5) });
+
+  // Count walls per variant for InstancedMesh allocation
+  let cA = 0, cB = 0;
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (maze[r][c] === 1) { (((c * 31 + r * 17) & 0xff) & 1) ? cB++ : cA++; }
+
+  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  const imA = new THREE.InstancedMesh(boxGeo, matA, Math.max(1, cA));
+  const imB = new THREE.InstancedMesh(boxGeo, matB, Math.max(1, cB));
+  imA.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  imB.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+
+  const dummy = new THREE.Object3D();
+  let ia = 0, ib = 0;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (maze[r][c] !== 1) continue;
+      dummy.position.set(c + 0.5, 0.5, r + 0.5);
+      dummy.updateMatrix();
+      if (((c * 31 + r * 17) & 0xff) & 1) imB.setMatrixAt(ib++, dummy.matrix);
+      else                                  imA.setMatrixAt(ia++, dummy.matrix);
+    }
+  }
+  imA.instanceMatrix.needsUpdate = true;
+  imB.instanceMatrix.needsUpdate = true;
+  mazeMeshGroup.add(imA, imB);
+
+  // Floor plane
+  const floorMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(COLS, ROWS),
+    new THREE.MeshLambertMaterial({ color: new THREE.Color(theme.floorColor) })
+  );
+  floorMesh.rotation.x = -Math.PI / 2;
+  floorMesh.position.set(COLS / 2, 0, ROWS / 2);
+  mazeMeshGroup.add(floorMesh);
+
+  // Sky background + distance fog
+  threeScene.background = new THREE.Color(theme.ceilColor);
+  threeScene.fog = new THREE.Fog(new THREE.Color(theme.floorColor), 6, 22);
+}
+
+function updateCamera() {
+  threeCamera.position.set(player.x, 0.5, player.y);
+  // Game angle 0 = east (+X). Three.js default looks down -Z.
+  // rotation.y = -(angle) - π/2 faces +X when angle=0.
+  threeCamera.rotation.set(0, -(player.angle) - Math.PI / 2, 0, 'YXZ');
+  const pl = threeScene.getObjectByName('playerLight');
+  if (pl) pl.position.copy(threeCamera.position);
+}
+
+// ── Sprite lifecycle stubs (3D sprites replaced by 2D canvas drawing) ─────────
+function createSprite()    {}
+function removeSprite()    {}
+function clearAllSprites() {}
+function rebuildAllSprites(){}
+
+// ── 2D sprite drawing — projects game entities onto the HUD canvas ────────────
+// Uses THREE.js camera projection (same as drawMonsterHPBars) for correct
+// perspective, plus a grid-based line-of-sight check for wall occlusion.
+function drawSprites2D(ts) {
+  const bob = Math.sin(ts / 400) * 0.04;
+
+  // Project world (wx, wy_up, wz) → screen {sx,sy}, or null if behind camera
+  function toScreen(wx, wy, wz) {
+    const v = new THREE.Vector3(wx, wy, wz).project(threeCamera);
+    if (v.z >= 1) return null;
+    return { sx: (v.x *  0.5 + 0.5) * CANVAS_W,
+             sy: (v.y * -0.5 + 0.5) * CANVAS_H };
+  }
+
+  // Walk the ray from player → target; return false if a wall cell is crossed
+  function hasLOS(tx, tz) {
+    const dx = tx - player.x, dz = tz - player.y;
+    const steps = Math.ceil(Math.hypot(dx, dz) * 6);
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const gc = Math.floor(player.x + dx * t);
+      const gr = Math.floor(player.y + dz * t);
+      if (gc >= 0 && gc < COLS && gr >= 0 && gr < ROWS && maze[gr][gc] === 1)
+        return false;
+    }
+    return true;
+  }
+
+  // Collect sprites: { wx, wy, wz, dist, drawFn }
+  const sprites = [];
+
+  // ── Monsters ──
+  for (const m of monsters) {
+    const wx = m.x + 0.5, wz = m.y + 0.5;
+    if (!hasLOS(wx, wz)) continue;
+    const dist = Math.hypot(wx - player.x, wz - player.y);
+    sprites.push({ wx, wy: 0.5, wz, dist, scale: 2.0, draw(sc, sz) {
+      const anim  = monsterAnims[m.type];
+      const fi    = anim?.frameIdx ?? 0;
+      const frame = anim?.frames?.[fi];
+      const src   = frame?.imgEl || (frame?.canvas?.width > 0 ? frame.canvas : null);
+      if (src) {
+        ctx.drawImage(src, sc.sx - sz / 2, sc.sy - sz / 2, sz, sz);
+      } else {
+        ctx.font = `${Math.round(sz)}px serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(MONSTER_TYPES[m.type].emoji, sc.sx, sc.sy);
+      }
+    }});
+  }
+
+  // ── Items ──
+  for (const item of items) {
+    const wx = item.x + 0.5, wz = item.y + 0.5;
+    if (!hasLOS(wx, wz)) continue;
+    const dist = Math.hypot(wx - player.x, wz - player.y);
+    sprites.push({ wx, wy: 0.5 + bob, wz, dist, draw(sc, sz) {
+      ctx.font = `${Math.round(sz)}px serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(item.emoji, sc.sx, sc.sy);
+    }});
+  }
+
+  // ── Exit portal ──
+  {
+    const wx = EXIT.x + 0.5, wz = EXIT.y + 0.5;
+    const pulse = 0.55 + 0.45 * Math.sin(ts / 400);
+    const dist  = Math.hypot(wx - player.x, wz - player.y);
+    sprites.push({ wx, wy: 0.5 + bob, wz, dist, draw(sc, sz) {
+      const g = ctx.createRadialGradient(sc.sx, sc.sy, 0, sc.sx, sc.sy, sz * 0.55);
+      g.addColorStop(0, `rgba(120,80,255,${(0.8 * pulse).toFixed(2)})`);
+      g.addColorStop(1, 'rgba(120,80,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(sc.sx, sc.sy, sz * 0.55, 0, Math.PI * 2); ctx.fill();
+      ctx.font = `${Math.round(sz)}px serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('🌀', sc.sx, sc.sy);
+    }});
+  }
+
+  // ── Projectiles ──
+  for (const p of projectiles) {
+    const wx = p.x + 0.5, wz = p.y + 0.5;
+    const dist = Math.hypot(wx - player.x, wz - player.y);
+    sprites.push({ wx, wy: 0.5, wz, dist, draw(sc, sz) {
+      ctx.font = `${Math.round(sz * 0.9)}px serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(p.emoji, sc.sx, sc.sy);
+    }});
+  }
+
+  // Sort far → near so closer sprites draw on top
+  sprites.sort((a, b) => b.dist - a.dist);
+
+  for (const s of sprites) {
+    const sc = toScreen(s.wx, s.wy, s.wz);
+    if (!sc) continue;
+    if (sc.sx < -200 || sc.sx > CANVAS_W + 200 ||
+        sc.sy < -200 || sc.sy > CANVAS_H + 200) continue;
+    const sz = Math.max(16, Math.min(400, 90 / s.dist)) * (s.scale ?? 1);
+    ctx.save();
+    s.draw(sc, sz);
+    ctx.restore();
+  }
+}
+
+function drawMonsterHPBars() {
+  for (const m of monsters) {
+    if (m.hp >= m.maxHp) continue;
+    const wp = new THREE.Vector3(m.x + 0.5, 1.1, m.y + 0.5);
+    wp.project(threeCamera);
+    if (wp.z > 1) continue; // behind camera
+    const sx = (wp.x * 0.5 + 0.5) * CANVAS_W;
+    const sy = (-wp.y * 0.5 + 0.5) * CANVAS_H;
+    if (sy < 10 || sy > CANVAS_H - 80) continue;
+    const dist = Math.hypot(m.x + 0.5 - player.x, m.y + 0.5 - player.y);
+    const bw = Math.max(18, Math.min(72, 55 / dist));
+    const bh = 5, bx = sx - bw / 2, by = sy;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(bx, by, bw, bh);
+    const ratio = m.hp / m.maxHp;
+    ctx.fillStyle = ratio > 0.5 ? '#4caf50' : ratio > 0.25 ? '#ff9800' : '#f44336';
+    ctx.fillRect(bx, by, Math.round(bw * ratio), bh);
+  }
+}
+
+// ─── Init / restart ───────────────────────────────────────────────────────────
+function initGame() {
+  currentThemeIdx = (selectedMazeIdx + level - 1) % MAZE_THEMES.length;
+  const theme  = MAZE_THEMES[currentThemeIdx];
+  const config = THEME_CONFIGS[currentThemeIdx];
+
+  glCanvas.style.borderColor = theme.borderColor;
+  glCanvas.style.boxShadow   = `0 0 24px ${theme.shadowColor}`;
+  document.getElementById('themeLabel').textContent = `World: ${theme.name}`;
+
+  // Set layout from config before generating so generateMaze can use EXIT
+  EXIT        = config.exit;
+  playerStart = { ...config.playerStart };
+
+  if (config.circular) {
+    generateCircularMaze();
+  } else {
+    generateMaze();
+  }
+
+  player          = { x: playerStart.x + 0.5, y: playerStart.y + 0.5,
+                      angle: Math.PI / 2, distAccum: 0 };  // face south into the maze
+  monsterInterval = Math.max(160, MONSTER_BASE_INTERVAL - (level - 1) * 30); // must be set before spawnMonsters
+  // Floor modifier must be set before spawnMonsters/spawnItems so Swarm and Blessed apply correctly
+  currentFloorMod = level === 1
+    ? FLOOR_MODS[0]
+    : FLOOR_MODS[1 + Math.floor(Math.random() * (FLOOR_MODS.length - 1))];
+  const modEl = document.getElementById('floorMod');
+  modEl.textContent = currentFloorMod.label;
+  modEl.style.color = currentFloorMod.color || '#aaa';
+  spawnMonsters(config.monsterSpawns);
+  spawnItems();
+  gameOver      = false;
+  levelWon      = false;
+  invincible        = false;
+  invincibleEnd     = 0;
+  combatMode        = false;
+  combatEnemyTurnEnd = 0;
+  playerHp      = playerMaxHp;   // full heal at each new level
+  speedBoostEnd = 0;
+  floatingTexts = [];
+  // Attack / respawn reset
+  attackCooldownEnd = 0;
+  attacks = [];
+  pendingRespawns = [];
+  powerBoostEnd = 0;
+  projectiles = [];
+  abilityCooldownEnd = 0; battleCryEnd = 0; battleCryDmgBonus = 0;
+  poisonedEnd = 0; poisonDmg = 0; poisonNextTick = 0;
+  atPortal = false;
+  vfx = [];
+  playerMp = Math.min(playerMaxMp, playerMp); // preserve partial mana between floors
+  // ── Three.js: rebuild maze geometry and sprites ───────────────────────────────
+  if (threeRenderer) {
+    buildMazeGeometry();
+  }
+  hideOverlay();
+  updateUI();
+  updateXpBar();
+  SFX.startBgm(currentThemeIdx);
+}
+
+function restartGame() {
+  SFX.stopBgm();
+  gameRunning = false;
+  gameContainer.classList.remove('show');
+  charSelect.style.display = '';
+  document.querySelectorAll('.charCard').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll('.mazeCard').forEach(el => el.classList.remove('selected'));
+  startBtn.classList.remove('ready');
+  selectedCharIdx = -1;
+  selectedMazeIdx = -1;
+  charXP = 0; charLevel = 1; charXPToNext = 100;
+  killCount = 0;
+  pendingRespawns = [];
+  currentFloorMod = FLOOR_MODS[0];
+  document.getElementById('floorMod').textContent = '';
+}
+
+function nextLevel() {
+  level++;
+  initGame();
+}
+
+// ─── UI helpers ───────────────────────────────────────────────────────────────
+function updateUI() {
+  document.getElementById('uiLives').textContent = lives;
+  document.getElementById('uiLevel').textContent = level;
+  document.getElementById('uiScore').textContent = score;
+  document.getElementById('uiKills').textContent = killCount;
+}
+
+function showOverlay(title, text, btnLabel, callback) {
+  document.getElementById('ovTitle').textContent = title;
+  document.getElementById('ovText').textContent  = text;
+  const btn = document.getElementById('ovBtn');
+  btn.textContent = btnLabel;
+  btn.onclick = callback;
+  document.getElementById('overlay').classList.add('show');
+}
+
+function hideOverlay() {
+  document.getElementById('overlay').classList.remove('show');
+}
+
+// ─── Input ────────────────────────────────────────────────────────────────────
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Enter'].includes(e.key)) e.preventDefault();
+  // Portal confirmation — takes priority over attack
+  if ((e.key === ' ' || e.key === 'Enter') && atPortal && !combatMode && gameRunning && !gameOver && !levelWon) {
+    atPortal = false;
+    score  += 100 * level;
+    charXP += 50  * level;
+    checkCharLevelUp();
+    updateUI();
+    SFX.levelWin();
+    nextLevel();
+    return;
+  }
+  if (e.key === ' ') tryAttack(performance.now());
+  if (e.key === 'f' || e.key === 'F') useAbility(performance.now());
+});
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// ── Mouse / Pointer Lock ───────────────────────────────────────────────────────
+glCanvas.addEventListener('click', () => {
+  SFX.boot();
+  if (gameRunning && !gameOver && !levelWon) glCanvas.requestPointerLock();
+});
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = document.pointerLockElement === glCanvas;
+});
+document.addEventListener('mousemove', e => {
+  if (!pointerLocked || !gameRunning || gameOver || levelWon) return;
+  player.angle += e.movementX * MOUSE_SENS;
+});
+glCanvas.addEventListener('mousedown', e => {
+  if (!pointerLocked || !gameRunning || gameOver || levelWon) return;
+  if (e.button === 0) tryAttack(performance.now());
+});
+
+function readDirection() {
+  if (keys['ArrowUp']    || keys['w'] || keys['W']) return [0, -1];
+  if (keys['ArrowDown']  || keys['s'] || keys['S']) return [0,  1];
+  if (keys['ArrowLeft']  || keys['a'] || keys['A']) return [-1, 0];
+  if (keys['ArrowRight'] || keys['d'] || keys['D']) return [ 1, 0];
+  return null;
+}
+
+function canMove(x, y) {
+  return x >= 0 && x < COLS && y >= 0 && y < ROWS && maze[y][x] === 0;
+}
+
+// Float-based collision for smooth FPS movement
+function canMoveF(x, y) {
+  const r = PLAYER_R;
+  const x0 = Math.floor(x - r), x1 = Math.floor(x + r);
+  const y0 = Math.floor(y - r), y1 = Math.floor(y + r);
+  if (x0 < 0 || x1 >= COLS || y0 < 0 || y1 >= ROWS) return false;
+  return maze[y0][x0] === 0 && maze[y0][x1] === 0
+      && maze[y1][x0] === 0 && maze[y1][x1] === 0;
+}
+
+// Snap player facing angle to nearest cardinal grid direction for attacks
+function getAttackDir() {
+  const a = ((player.angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  const cos = Math.cos(a), sin = Math.sin(a);
+  if (Math.abs(cos) >= Math.abs(sin)) return cos > 0 ? [1, 0] : [-1, 0];
+  return sin > 0 ? [0, 1] : [0, -1];
+}
+
+// ─── Game loop ────────────────────────────────────────────────────────────────
+function update(ts) {
+  const dt = Math.min(ts - lastTimestamp, 250); // cap to avoid huge spike on first frame or tab resume
+  lastTimestamp = ts;
+
+  if (gameOver || levelWon) return;
+
+  // ── Update floating texts ──
+  floatingTexts.forEach(ft => { ft.life -= dt / 1200; ft.y -= dt * 0.025; });
+  floatingTexts = floatingTexts.filter(ft => ft.life > 0);
+
+  // ── Decay attack flash animations ──
+  attacks.forEach(a => { a.life -= dt / 250; });
+  attacks = attacks.filter(a => a.life > 0);
+
+  // ── HP regeneration (3 HP/s, paused during combat) ───────────────────────────
+  if (!combatMode && playerHp < playerMaxHp) {
+    playerHp = Math.min(playerMaxHp, playerHp + 3 * (dt / 1000));
+  }
+
+  // ── Mana regeneration ─────────────────────────────────────────────────────────
+  const mpRegenMult = CLASS_DATA[selectedCharIdx]?.passive?.name === 'Arcane Flow' ? 2 : 1;
+  playerMp = Math.min(playerMaxMp, playerMp + 1.5 * mpRegenMult * (dt / 1000));
+
+  // ── Advance monster GIF animation frames ──
+  for (const anim of monsterAnims) {
+    if (anim.frames.length > 1) {
+      anim.elapsed += dt;
+      while (anim.elapsed >= anim.frames[anim.frameIdx].delay) {
+        anim.elapsed -= anim.frames[anim.frameIdx].delay;
+        anim.frameIdx = (anim.frameIdx + 1) % anim.frames.length;
+      }
+    }
+  }
+
+  // ── Active effect indicators ──
+  document.getElementById('fxSpeed').classList.toggle('active', speedBoostEnd > ts);
+  document.getElementById('fxShield').classList.toggle('active', invincible && invincibleEnd > ts && !gameOver);
+  document.getElementById('fxPower').classList.toggle('active', powerBoostEnd > ts);
+
+  // ── Player movement — locked during enemy's turn ────────────────────────────
+  const charStat = CHARACTERS[selectedCharIdx].stat;
+
+  // Mouse/keyboard look is always free (no turn cost)
+  let turnRate = TURN_SPD * (dt / 1000);
+  if (keys['ArrowLeft']  || keys['q'] || keys['Q']) player.angle -= turnRate;
+  if (keys['ArrowRight'] || keys['e'] || keys['E']) player.angle += turnRate;
+
+  // WASD movement is blocked while the enemy is retaliating
+  const fwdX = Math.cos(player.angle), fwdY = Math.sin(player.angle);
+  const rtX  = Math.cos(player.angle + Math.PI / 2);
+  const rtY  = Math.sin(player.angle + Math.PI / 2);
+  let mx = 0, my = 0;
+  if (ts >= combatEnemyTurnEnd) {                           // not enemy's turn
+    if (keys['w'] || keys['W'] || keys['ArrowUp'])   { mx += fwdX; my += fwdY; }
+    if (keys['s'] || keys['S'] || keys['ArrowDown']) { mx -= fwdX; my -= fwdY; }
+    if (keys['a'] || keys['A'])                      { mx -= rtX;  my -= rtY;  }
+    if (keys['d'] || keys['D'])                      { mx += rtX;  my += rtY;  }
+  }
+
+  let spd = MOVE_SPD * (dt / 1000);
+  if (charStat === 'speed')                                spd *= 1.25;
+  if (speedBoostEnd > ts)                                  spd *= 1.80;
+  if (currentFloorMod && currentFloorMod.id === 'haste')  spd *= 1.25;
+
+  const mag = Math.hypot(mx, my);
+  if (mag > 0) {
+    const nx = player.x + (mx / mag) * spd;
+    const ny = player.y + (my / mag) * spd;
+    const oldX = player.x, oldY = player.y;
+    if (canMoveF(nx,       player.y)) player.x = nx;
+    if (canMoveF(player.x, ny      )) player.y = ny;
+    // XP / score per grid-unit travelled (same rate as before: ~1 per 130 ms)
+    player.distAccum += Math.hypot(player.x - oldX, player.y - oldY);
+    while (player.distAccum >= 0.13) {
+      player.distAccum -= 0.13;
+      score++; charXP++;
+    }
+    checkCharLevelUp();
+    updateUI();
+  }
+
+  // ── Item collection (proximity) ──
+  items = items.filter(item => {
+    if (Math.hypot(item.x + 0.5 - player.x, item.y + 0.5 - player.y) >= 0.65) return true;
+    if (threeRenderer) removeSprite(item);
+    collectItem(item, ts);
+    return false;
+  });
+
+  // ── Check exit (portal) ──
+  atPortal = Math.hypot(player.x - (EXIT.x + 0.5), player.y - (EXIT.y + 0.5)) < 0.65;
+
+  // ── Monster movement — always chases player in real-time ────────────────────
+  const hasteMult = (currentFloorMod && currentFloorMod.id === 'haste') ? 0.75 : 1.0;
+  for (const m of monsters) {
+    m.moveTimer += dt;
+    if (m.moveTimer >= m.moveInterval * hasteMult) {
+      m.moveTimer -= m.moveInterval * hasteMult;
+      const next = bfsNext(m.x, m.y, Math.floor(player.x), Math.floor(player.y));
+      if (next) { m.x = next.x; m.y = next.y; }
+    }
+  }
+
+  // ── combatMode: any monster within 1.5 cells (used for HUD / HP regen) ──────
+  combatMode = monsters.some(m => Math.hypot(m.x + 0.5 - player.x, m.y + 0.5 - player.y) < 1.5);
+
+  // ── Monster melee attacks (real-time, per-monster cooldown) ──────────────────
+  for (const m of monsters) {
+    const dist = Math.hypot(m.x + 0.5 - player.x, m.y + 0.5 - player.y);
+    if (dist < 0.9 && ts >= m.attackCooldownEnd) {
+      m.attackCooldownEnd = ts + m.attackInterval;
+      applyDamageToPlayer(m.damage, ts);
+    }
+  }
+
+  // ── Monster abilities (mana regen + spells) ───────────────────────────────────
+  for (const m of monsters) {
+    if (Math.hypot(m.x + 0.5 - player.x, m.y + 0.5 - player.y) < 1.5) {
+      tryMonsterAbility(m, ts, dt);
+    }
+  }
+
+  // ── Projectile movement ───────────────────────────────────────────────────────
+  for (const p of projectiles) {
+    p.elapsed = (p.elapsed || 0) + dt;
+    while (p.elapsed >= 300) {
+      p.elapsed -= 300;
+      const nx = p.x + p.dx, ny = p.y + p.dy;
+      if (!canMove(nx, ny)) { p.dead = true; break; }
+      p.x = nx; p.y = ny;
+      if (Math.hypot(p.x + 0.5 - player.x, p.y + 0.5 - player.y) < 0.8) {
+        applyDamageToPlayer(p.damage, ts);
+        addFloatingText(CANVAS_W / 2, CANVAS_H / 2 + 36, `💀 Shadow Bolt hit!`, '#aa44ff');
+        p.dead = true; break;
+      }
+    }
+  }
+  projectiles = projectiles.filter(p => {
+    if (p.dead && threeRenderer) removeSprite(p);
+    return !p.dead;
+  });
+
+  // ── Poison tick ───────────────────────────────────────────────────────────────
+  if (poisonedEnd > ts && poisonNextTick < ts) {
+    poisonNextTick += 2000;
+    applyDamageToPlayer(poisonDmg, ts);
+    addFloatingText(CANVAS_W / 2, CANVAS_H / 2 + 50, `☠️ Poison -${poisonDmg}`, '#44cc44');
+  }
+
+  // ── Respawn pending monsters ──
+  pendingRespawns = pendingRespawns.filter(r => {
+    if (ts < r.respawnAt) return true;
+    // Don't respawn if player or another monster is standing on that cell
+    const blocked = Math.hypot(player.x - (r.spawnX + 0.5), player.y - (r.spawnY + 0.5)) < 0.7
+                 || monsters.some(m => m.x === r.spawnX && m.y === r.spawnY);
+    if (blocked) { r.respawnAt = ts + 2000; return true; } // retry in 2 s
+    const mt = MONSTER_TYPES[r.type];
+    const rm = makeMonster({ x: r.spawnX, y: r.spawnY, type: r.type }, monsterInterval);
+    monsters.push(rm);
+    if (threeRenderer) createSprite(rm, rm.x + 0.5, rm.y + 0.5, 0.9, false);
+    SFX.respawn();
+    addFloatingText(CANVAS_W / 2, CANVAS_H - 60, `${mt.emoji} Respawn!`, '#ff8a65');
+    return false;
+  });
+
+}
+// Passive collision damage removed — combat is now turn-based:
+// monsters deal damage via initiative (on closing to range) and counter-attack (after player attacks).
+
+// ─── Player ability ───────────────────────────────────────────────────────────
+function useAbility(ts) {
+  if (!gameRunning || gameOver || levelWon) return;
+  if (ts < abilityCooldownEnd) return;
+  const cls = CLASS_DATA[selectedCharIdx];
+  if (!cls) return;
+  if (playerMp < cls.ability.cost) return;
+
+  playerMp -= cls.ability.cost;
+  abilityCooldownEnd = ts + cls.ability.cooldown;
+
+  switch (cls.className) {
+    case 'Rogue': {
+      // Backstab: 3× damage to closest adjacent monster
+      SFX.abilityBackstab();
+      addVFX({ dur: 380, flashCol: '160,0,40', flashA: 0.38,
+               emoji: '🗡️', emojiSz: 78,
+               ring: '🗡️', ringN: 5, ringSz: 28, ringR: 145 }, ts);
+      const atk = CHAR_ATTACKS[selectedCharIdx];
+      const dmg = (atk.damage + getPlayerDamageBonus()) * 3;
+      let closest = null, minD = Infinity;
+      for (const m of monsters) {
+        const d = Math.hypot(m.x + 0.5 - player.x, m.y + 0.5 - player.y);
+        if (d < 1.5 && d < minD) { minD = d; closest = m; }
+      }
+      if (closest) {
+        closest.hp -= dmg;
+        addFloatingText(CANVAS_W / 2, CANVAS_H / 2 - 50, `🗡️ Backstab! -${dmg}`, '#ff6644');
+        if (closest.hp <= 0) {
+          const mt = MONSTER_TYPES[closest.type];
+          charXP += Math.round(20 * level * mt.xpMult);
+          score  += Math.round(25 * level * mt.scoreMult);
+          killCount++; updateUI(); SFX.monsterDie(); checkCharLevelUp();
+          pendingRespawns.push({ type: closest.type, spawnX: closest.spawnX, spawnY: closest.spawnY,
+                                 respawnAt: ts + Math.max(5000, 12000 - level * 600) });
+          if (threeRenderer) removeSprite(closest);
+          monsters.splice(monsters.indexOf(closest), 1);
+        } else { SFX.monsterHit(); }
+      }
+      break;
+    }
+    case 'Warrior': {
+      // Battle Cry: +2 ATK for 5 seconds
+      SFX.abilityBattleCry();
+      addVFX({ dur: 620, flashCol: '255,140,0', flashA: 0.28,
+               emoji: '📯', emojiSz: 85,
+               ring: '✨', ringN: 8, ringSz: 22, ringR: 190 }, ts);
+      battleCryEnd = ts + 5000;
+      battleCryDmgBonus = 2;
+      addFloatingText(CANVAS_W / 2, CANVAS_H / 2 - 50, '📯 Battle Cry! +2 ATK', '#ffd700');
+      break;
+    }
+    case 'Mage': {
+      // Fireball: 3 dmg to all monsters within 1.5 cells
+      SFX.abilityFireball();
+      addVFX({ dur: 500, flashCol: '220,55,0', flashA: 0.44,
+               emoji: '🔥', emojiSz: 92,
+               ring: '🔥', ringN: 6, ringSz: 34, ringR: 165 }, ts);
+      let hit = false;
+      for (let i = monsters.length - 1; i >= 0; i--) {
+        const m = monsters[i];
+        if (Math.hypot(m.x + 0.5 - player.x, m.y + 0.5 - player.y) < 1.5) {
+          m.hp -= 3;
+          hit = true;
+          if (m.hp <= 0) {
+            const mt = MONSTER_TYPES[m.type];
+            charXP += Math.round(20 * level * mt.xpMult);
+            score  += Math.round(25 * level * mt.scoreMult);
+            killCount++; updateUI(); SFX.monsterDie(); checkCharLevelUp();
+            pendingRespawns.push({ type: m.type, spawnX: m.spawnX, spawnY: m.spawnY,
+                                   respawnAt: ts + Math.max(5000, 12000 - level * 600) });
+            if (threeRenderer) removeSprite(m);
+            monsters.splice(i, 1);
+          }
+        }
+      }
+      if (hit) addFloatingText(CANVAS_W / 2, CANVAS_H / 2 - 50, '🔥 Fireball! -3', '#ff4500');
+      break;
+    }
+    case 'Paladin': {
+      // Divine Shield: 3 s invincibility + 25 HP heal
+      SFX.abilityDivineShield();
+      addVFX({ dur: 720, flashCol: '255,240,180', flashA: 0.34, glow: true,
+               emoji: '🛡️', emojiSz: 88,
+               ring: '✨', ringN: 10, ringSz: 20, ringR: 210 }, ts);
+      invincible    = true;
+      invincibleEnd = ts + 3000;
+      playerHp = Math.min(playerMaxHp, playerHp + 25);
+      addFloatingText(CANVAS_W / 2, CANVAS_H / 2 - 50, '🛡️ Divine Shield! +25 HP', '#00e5ff');
+      break;
+    }
+  }
+}
+
+// ─── Monster ability ──────────────────────────────────────────────────────────
+function tryMonsterAbility(m, ts, dt) {
+  const mt = MONSTER_TYPES[m.type];
+  m.mp = Math.min(m.maxMp, m.mp + m.mpRegen * (dt / 1000));
+  if (m.mp < m.maxMp || ts < m.abilityCooldownEnd) return;
+
+  m.mp = 0;
+  m.abilityCooldownEnd = ts + mt.abilityCooldown;
+
+  switch (mt.abilityName) {
+    case 'Shadow Bolt': {
+      // Fire a projectile toward the player — snap to dominant axis (4-directional)
+      const ddx = player.x - (m.x + 0.5), ddy = player.y - (m.y + 0.5);
+      const pdx = Math.abs(ddx) >= Math.abs(ddy) ? (ddx >= 0 ? 1 : -1) : 0;
+      const pdy = Math.abs(ddy) >  Math.abs(ddx) ? (ddy >= 0 ? 1 : -1) : 0;
+      const proj = { x: m.x, y: m.y, dx: pdx, dy: pdy,
+                     damage: m.damage, emoji: '💀', elapsed: 0 };
+      projectiles.push(proj);
+      if (threeRenderer) createSprite(proj, proj.x + 0.5, proj.y + 0.5, 0.45, false);
+      SFX.abilityShadowBolt();
+      addVFX({ dur: 320, flashCol: '70,0,150', flashA: 0.32,
+               ring: '💀', ringN: 4, ringSz: 28, ringR: 120 }, ts);
+      addFloatingText(CANVAS_W / 2, CANVAS_H / 2 + 50, `💀 Shadow Bolt!`, '#aa44ff');
+      break;
+    }
+    case 'Poison Cloud': {
+      poisonedEnd      = ts + 8000;
+      poisonDmg        = Math.round(8 * (1 + 0.15 * (level - 1)));
+      poisonNextTick   = ts + 2000;
+      SFX.abilityPoisonCloud();
+      addVFX({ dur: 650, flashCol: '20,160,20', flashA: 0.40,
+               emoji: '☠️', emojiSz: 74,
+               ring: '🟢', ringN: 6, ringSz: 20, ringR: 170 }, ts);
+      addFloatingText(CANVAS_W / 2, CANVAS_H / 2 + 50, `☠️ Poisoned!`, '#44ff44');
+      break;
+    }
+    case 'Inferno Strike': {
+      SFX.abilityInfernoStrike();
+      addVFX({ dur: 460, flashCol: '240,50,0', flashA: 0.52,
+               emoji: '🔥', emojiSz: 98,
+               ring: '🔥', ringN: 4, ringSz: 40, ringR: 140, ringOff: Math.PI / 4 }, ts);
+      applyDamageToPlayer(m.damage * 2, ts);
+      addFloatingText(CANVAS_W / 2, CANVAS_H / 2 + 50, `🔥 Inferno Strike!`, '#ff6600');
+      break;
+    }
+  }
+}
+
+
+// Small tactical overhead minimap in the top-right corner.
+function drawMinimap() {
+  const CELL_PX = 4;                    // screen pixels per maze cell
+  const MM_W    = COLS * CELL_PX;       // 84 px
+  const MM_H    = ROWS * CELL_PX;       // 84 px
+  const MX      = CANVAS_W - MM_W - 6;
+  const MY      = 6;
+
+  ctx.save();
+  ctx.globalAlpha = 0.78;
+
+  // Background
+  ctx.fillStyle = '#000';
+  ctx.fillRect(MX, MY, MM_W, MM_H);
+
+  // Walls
+  ctx.fillStyle = 'rgba(180,180,255,0.85)';
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      if (maze[row][col] === 1) ctx.fillRect(MX + col * CELL_PX, MY + row * CELL_PX, CELL_PX, CELL_PX);
+    }
+  }
+
+  // Exit portal
+  ctx.fillStyle = '#9c40ff';
+  ctx.fillRect(MX + EXIT.x * CELL_PX + 1, MY + EXIT.y * CELL_PX + 1, CELL_PX - 1, CELL_PX - 1);
+
+  // Items (cyan dots)
+  ctx.fillStyle = '#00e5ff';
+  for (const item of items)
+    ctx.fillRect(MX + item.x * CELL_PX + 1, MY + item.y * CELL_PX + 1, CELL_PX - 2, CELL_PX - 2);
+
+  // Monsters
+  for (const m of monsters) {
+    ctx.fillStyle = m.type === 0 ? '#ff4444' : '#ff9900';
+    ctx.fillRect(MX + m.x * CELL_PX + 1, MY + m.y * CELL_PX + 1, CELL_PX - 1, CELL_PX - 1);
+  }
+
+  // Player dot and view-direction line
+  const ppx = MX + player.x * CELL_PX;
+  const ppy = MY + player.y * CELL_PX;
+  ctx.fillStyle = '#00ff88';
+  ctx.beginPath();
+  ctx.arc(ppx, ppy, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#00ff88';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(ppx, ppy);
+  ctx.lineTo(ppx + Math.cos(player.angle) * 6, ppy + Math.sin(player.angle) * 6);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// Central crosshair
+function drawCrosshair() {
+  const cx = CANVAS_W / 2, cy = CANVAS_H / 2;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, cy); ctx.lineTo(cx - 3, cy);
+  ctx.moveTo(cx + 3, cy); ctx.lineTo(cx + 8, cy);
+  ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy - 3);
+  ctx.moveTo(cx, cy + 3); ctx.lineTo(cx, cy + 8);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ── Ability / spell visual effects ────────────────────────────────────────────
+function addVFX(cfg, ts) {
+  vfx.push({ startTs: ts, ...cfg });
+}
+
+function drawVFX(ts) {
+  vfx = vfx.filter(v => ts - v.startTs < v.dur);
+  const cx = CANVAS_W / 2, cy = CANVAS_H / 2 - 30;
+  for (const v of vfx) {
+    const p    = Math.min(1, (ts - v.startTs) / v.dur); // 0 → 1
+    const life = 1 - p;                                  // 1 → 0
+
+    // ── Full-screen colour flash (peaks mid-animation, fades out) ───────────
+    if (v.flashCol && v.flashA) {
+      const fa = v.flashA * Math.sin(p * Math.PI);
+      ctx.save();
+      ctx.globalAlpha = fa;
+      ctx.fillStyle   = `rgb(${v.flashCol})`;
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+      ctx.restore();
+    }
+
+    // ── Optional radial holy glow (Paladin) ──────────────────────────────────
+    if (v.glow) {
+      const r = 220 * p;
+      const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      grd.addColorStop(0,   `rgba(255,240,180,${0.55 * life})`);
+      grd.addColorStop(0.5, `rgba(255,220,100,${0.25 * life})`);
+      grd.addColorStop(1,   'rgba(255,200,50,0)');
+      ctx.save();
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    // ── Centre emoji: appears, grows, and fades ──────────────────────────────
+    if (v.emoji) {
+      const sz = Math.round((v.emojiSz || 72) * (1 + p * 0.6));
+      ctx.save();
+      ctx.globalAlpha  = life;
+      ctx.font         = `${sz}px serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(v.emoji, cx, cy);
+      ctx.restore();
+    }
+
+    // ── Ring of emojis bursting outward ─────────────────────────────────────
+    if (v.ring && v.ringN > 0) {
+      const r   = (v.ringR || 150) * p;
+      const sz  = v.ringSz || 26;
+      const off = v.ringOff || 0;   // optional angle offset
+      ctx.save();
+      ctx.globalAlpha  = life * 0.9;
+      ctx.font         = `${sz}px serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i < v.ringN; i++) {
+        const a = (i / v.ringN) * Math.PI * 2 + off;
+        ctx.fillText(v.ring, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+      }
+      ctx.restore();
+    }
+  }
+}
+
+// Screen-space attack flash (brief yellow tint + expanding emoji at screen center)
+function drawAttacks() {
+  for (const a of attacks) {
+    const t = Math.max(0, a.life);
+    ctx.save();
+    ctx.globalAlpha = t * 0.28;
+    ctx.fillStyle   = '#ffcc00';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.restore();
+    const sz = Math.round(52 * (1 + (1 - t) * 0.55));
+    ctx.save();
+    ctx.globalAlpha  = t;
+    ctx.font         = `${sz}px serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(a.emoji, CANVAS_W / 2, CANVAS_H / 2);
+    ctx.restore();
+  }
+}
+
+function drawFloatingTexts() {
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  for (const ft of floatingTexts) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, ft.life);
+    ctx.font        = 'bold 14px sans-serif';
+    ctx.shadowColor = 'rgba(0,0,0,0.9)';
+    ctx.shadowBlur  = 5;
+    ctx.fillStyle   = ft.color;
+    ctx.fillText(ft.text, ft.x, ft.y);
+    ctx.restore();
+  }
+}
+
+// Full-width bottom HUD bar.
+function drawPlayerHUD(ts) {
+  const PANEL_H  = 72;
+  const py       = CANVAS_H - PANEL_H;        // top of bar (flush to bottom)
+  const glowing  = invincible && invincibleEnd > ts;
+  const cls      = CLASS_DATA[selectedCharIdx];
+  const poisoned = poisonedEnd > ts;
+  const battleCry = battleCryEnd > ts;
+  const char     = CHARACTERS[selectedCharIdx];
+  const s        = getPlayerStats();
+
+  ctx.save();
+
+  // ── Full-width panel background ───────────────────────────────────────────
+  ctx.fillStyle = 'rgba(0,0,0,0.80)';
+  ctx.fillRect(0, py, CANVAS_W, PANEL_H);
+  // top border line
+  ctx.strokeStyle = glowing ? '#00ffe0' : poisoned ? '#44ff44' : 'rgba(255,255,255,0.18)';
+  ctx.lineWidth   = glowing || poisoned ? 2 : 1;
+  ctx.beginPath();
+  ctx.moveTo(0, py); ctx.lineTo(CANVAS_W, py);
+  ctx.stroke();
+
+  // ────────────────────────────────────────────────────────────────────────
+  // SECTION A — Portrait + name + level  (x: 0 … 90)
+  // ────────────────────────────────────────────────────────────────────────
+  const PD = 54;                     // portrait diameter
+  const PCX = 6 + PD / 2;           // portrait centre-x
+  const PCY = py + PANEL_H / 2;     // portrait centre-y (vertically centred)
+  const img = charImages[selectedCharIdx];
+  if (img && img.complete) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(PCX, PCY, PD / 2, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(img, PCX - PD / 2, PCY - PD / 2, PD, PD);
+    ctx.restore();
+  }
+  ctx.strokeStyle = glowing ? '#00ffe0' : 'rgba(255,255,255,0.6)';
+  ctx.lineWidth   = glowing ? 2.5 : 1.5;
+  ctx.beginPath();
+  ctx.arc(PCX, PCY, PD / 2, 0, Math.PI * 2);
+  ctx.stroke();
+  // char emoji + name below portrait (inside bar)
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.fillStyle = '#ffd700';
+  ctx.fillText(char ? char.name : '', PCX, py + 2);
+  // Rank/level badge bottom of portrait area
+  ctx.font = '8px sans-serif';
+  ctx.fillStyle = '#aaa';
+  ctx.fillText(`Lv.${charLevel}`, PCX, py + PANEL_H - 13);
+
+  const SEC_A_END = 6 + PD + 8;   // x where section A ends (~74)
+
+  // ────────────────────────────────────────────────────────────────────────
+  // SECTION B — HP / MP bars + class + weapon   (x: SEC_A_END … +220)
+  // ────────────────────────────────────────────────────────────────────────
+  const BAR_X = SEC_A_END;
+  const BAR_W = 210;
+  const BAR_H = 11;
+  const barTop = py + 10;
+
+  // HP bar
+  const hpRatio = playerMaxHp > 0 ? Math.max(0, playerHp / playerMaxHp) : 1;
+  ctx.fillStyle = 'rgba(20,20,20,0.9)';
+  ctx.fillRect(BAR_X, barTop, BAR_W, BAR_H);
+  ctx.fillStyle = hpRatio > 0.55 ? '#4caf50' : hpRatio > 0.28 ? '#ff9800' : '#f44336';
+  ctx.fillRect(BAR_X, barTop, Math.round(BAR_W * hpRatio), BAR_H);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.fillRect(BAR_X, barTop, Math.round(BAR_W * hpRatio), 3);
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 0.75;
+  ctx.strokeRect(BAR_X, barTop, BAR_W, BAR_H);
+  ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(`❤️ ${Math.floor(playerHp)} / ${playerMaxHp}`, BAR_X + BAR_W / 2, barTop + BAR_H / 2);
+
+  // MP bar
+  const mpRatio = playerMaxMp > 0 ? Math.max(0, playerMp / playerMaxMp) : 0;
+  const mpTop = barTop + BAR_H + 4;
+  ctx.fillStyle = 'rgba(20,20,20,0.9)';
+  ctx.fillRect(BAR_X, mpTop, BAR_W, BAR_H);
+  ctx.fillStyle = '#2196f3';
+  ctx.fillRect(BAR_X, mpTop, Math.round(BAR_W * mpRatio), BAR_H);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.fillRect(BAR_X, mpTop, Math.round(BAR_W * mpRatio), 3);
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 0.75;
+  ctx.strokeRect(BAR_X, mpTop, BAR_W, BAR_H);
+  ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#cce8ff';
+  ctx.fillText(`💧 ${Math.floor(playerMp)} / ${playerMaxMp}`, BAR_X + BAR_W / 2, mpTop + BAR_H / 2);
+
+  // Class + weapon row
+  const classY = mpTop + BAR_H + 5;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  if (cls) {
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText(cls.className, BAR_X, classY);
+    ctx.font = '8px sans-serif';
+    ctx.fillStyle = '#bbb';
+    ctx.fillText(`${cls.weapon.emoji} ${cls.weapon.name}`, BAR_X + 52, classY);
+    ctx.font = '8px sans-serif';
+    ctx.fillStyle = '#999';
+    ctx.fillText(`✦ ${cls.passive.name}`, BAR_X, classY + 12);
+  }
+
+  const SEC_B_END = BAR_X + BAR_W + 12;
+
+  // ────────────────────────────────────────────────────────────────────────
+  // SECTION C — Ability   (x: SEC_B_END … +190)
+  // ────────────────────────────────────────────────────────────────────────
+  const ABL_X = SEC_B_END;
+  const ABL_W = 178;
+  if (cls) {
+    const abilityReady = playerMp >= cls.ability.cost && ts >= abilityCooldownEnd;
+    const cooldownLeft = abilityCooldownEnd > ts ? Math.ceil((abilityCooldownEnd - ts) / 1000) : 0;
+    const cdStr = cooldownLeft > 0 ? ` (${cooldownLeft}s)` : playerMp < cls.ability.cost ? ' (low MP)' : ' Ready!';
+    const ablColor = abilityReady ? '#7ec8e3' : '#555';
+
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillStyle = '#e0e0e0';
+    ctx.fillText('[F] Ability', ABL_X, py + 8);
+
+    ctx.font = `bold 11px sans-serif`;
+    ctx.fillStyle = abilityReady ? '#fff' : '#666';
+    ctx.fillText(`${cls.ability.emoji} ${cls.ability.name}`, ABL_X, py + 20);
+
+    ctx.font = '8px sans-serif';
+    ctx.fillStyle = ablColor;
+    ctx.fillText(cdStr.trim(), ABL_X, py + 34);
+
+    // Ability cost bar (shows MP progress toward cost)
+    const costRatio = Math.min(1, playerMp / cls.ability.cost);
+    const cbW = ABL_W - 4, cbH = 6, cbY = py + 46;
+    ctx.fillStyle = 'rgba(20,20,20,0.9)';
+    ctx.fillRect(ABL_X, cbY, cbW, cbH);
+    ctx.fillStyle = abilityReady ? '#7ec8e3' : '#1565c0';
+    ctx.fillRect(ABL_X, cbY, Math.round(cbW * costRatio), cbH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 0.75;
+    ctx.strokeRect(ABL_X, cbY, cbW, cbH);
+
+    ctx.font = '8px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillStyle = '#777';
+    ctx.fillText(`${cls.ability.cost} MP`, ABL_X, py + 55);
+  }
+
+  const SEC_C_END = ABL_X + ABL_W + 10;
+
+  // ────────────────────────────────────────────────────────────────────────
+  // SECTION D — Stats + Status effects  (x: SEC_C_END … CANVAS_W-6)
+  // ────────────────────────────────────────────────────────────────────────
+  const ST_X = SEC_C_END;
+
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+
+  // Stats 2×2 grid
+  const statPairs = [
+    { label: 'STR', val: s.str, color: '#ff7043' },
+    { label: 'DEX', val: s.dex, color: '#ffca28' },
+    { label: 'INT', val: s.int, color: '#42a5f5' },
+    { label: 'VIT', val: s.vit, color: '#66bb6a' },
+  ];
+  const colW = 58;
+  statPairs.forEach((st, i) => {
+    const sx = ST_X + (i % 2) * colW;
+    const sy = py + 8 + Math.floor(i / 2) * 16;
+    ctx.font = '8px sans-serif';
+    ctx.fillStyle = '#777';
+    ctx.fillText(st.label, sx, sy);
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillStyle = st.color;
+    ctx.fillText(st.val, sx + 22, sy);
+  });
+
+  // Status effects row
+  let stY = py + 44;
+  ctx.font = '8px sans-serif'; ctx.textBaseline = 'top';
+  if (poisoned) {
+    ctx.fillStyle = '#44ff88';
+    ctx.fillText(`☠️ ${Math.ceil((poisonedEnd - ts) / 1000)}s`, ST_X, stY);
+    stY += 13;
+  }
+  if (battleCry) {
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText(`📯 ${Math.ceil((battleCryEnd - ts) / 1000)}s`, ST_X, stY);
+    stY += 13;
+  }
+  if (glowing) {
+    ctx.fillStyle = '#00ffe0';
+    ctx.fillText(`🛡️ ${Math.ceil((invincibleEnd - ts) / 1000)}s`, ST_X, stY);
+  }
+
+  ctx.restore();
+}
+
+// ── Real-time ARPG combat strip ───────────────────────────────────────────────
+function drawCombatBanner(ts) {
+  const cls = CLASS_DATA[selectedCharIdx];
+  const atk = CHAR_ATTACKS[selectedCharIdx];
+
+  // ── Attack cooldown bar (always visible, top-centre) ─────────────────────
+  const cdTotal  = atk ? Math.round(atk.cooldown * getPlayerCooldownMult()) : 350;
+  const cdElapsed = Math.min(cdTotal, cdTotal - Math.max(0, attackCooldownEnd - ts));
+  const cdRatio  = cdElapsed / cdTotal;
+  const bW = 260, bH = 6, bX = Math.round((CANVAS_W - bW) / 2), bY = 8;
+
+  ctx.save();
+  // Bar track
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath(); ctx.roundRect(bX, bY, bW, bH, 3); ctx.fill();
+  // Bar fill — green when ready, orange when cooling down
+  const ready = cdRatio >= 1;
+  ctx.fillStyle = ready ? '#4caf50' : '#ff9800';
+  ctx.beginPath(); ctx.roundRect(bX, bY, Math.round(bW * cdRatio), bH, 3); ctx.fill();
+  // Label
+  ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = ready ? '#afffb0' : '#ffd088';
+  const atkLabel = ready ? `⚔ ${atk ? atk.label : 'Attack'} — Ready` : '⚔ Cooldown…';
+  ctx.fillText(atkLabel, CANVAS_W / 2, bY + bH + 2);
+
+  // ── Ability hint (below attack label, when available) ─────────────────────
+  if (cls) {
+    const abilityReady = playerMp >= cls.ability.cost && ts >= abilityCooldownEnd;
+    ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillStyle = abilityReady ? '#7ec8e3' : 'rgba(255,255,255,0.25)';
+    const cdLeft = abilityCooldownEnd > ts ? ` (${Math.ceil((abilityCooldownEnd - ts) / 1000)}s)` : '';
+    ctx.fillText(`[F] ${cls.ability.emoji} ${cls.ability.name}${cdLeft}`, CANVAS_W / 2, bY + bH + 14);
+  }
+
+  // ── Enemy-nearby flash border (red pulse when a monster is very close) ────
+  if (combatMode) {
+    const pulse = 0.18 + 0.18 * Math.sin(ts / 160);
+    ctx.strokeStyle = `rgba(255,40,40,${pulse})`;
+    ctx.lineWidth   = 6;
+    ctx.strokeRect(0, 0, CANVAS_W, CANVAS_H);
+  }
+
+  ctx.restore();
+}
+
+function draw(ts) {
+  if (!threeRenderer || !gameRunning) return;
+  // ── Switch explore ↔ combat music when proximity changes ─────────────────────
+  SFX.switchCombatBgm(combatMode && !gameOver && !levelWon);
+  // ── Three.js 3D render ───────────────────────────────────────────────────────
+  updateCamera();
+  threeRenderer.render(threeScene, threeCamera);
+  // ── 2D HUD overlay (transparent canvas on top) ───────────────────────────────
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  drawSprites2D(ts);   // monsters, items, portal, projectiles drawn on 2D overlay
+  drawMonsterHPBars();
+  drawMinimap();
+  drawPlayerHUD(ts);
+  drawCrosshair();
+  drawAttacks();
+  drawVFX(ts);
+  drawCombatBanner(ts);
+  drawFloatingTexts();
+  // Portal confirmation prompt
+  if (atPortal && !combatMode) {
+    const bw = 360, bh = 54, bx = (CANVAS_W - bw) / 2, by = CANVAS_H * 0.62;
+    const pulse = 0.75 + 0.25 * Math.sin(ts / 300);
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = 'rgba(60,0,120,0.82)';
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bw, bh, 10);
+    ctx.fill();
+    ctx.strokeStyle = '#b070ff';
+    ctx.lineWidth   = 2;
+    ctx.stroke();
+    ctx.globalAlpha  = 1;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font         = 'bold 18px sans-serif';
+    ctx.fillStyle    = '#e0c0ff';
+    ctx.fillText('🌀 Press  Space / Enter  to enter portal', CANVAS_W / 2, by + bh / 2);
+    ctx.restore();
+  }
+  // Pointer-lock prompt — shown whenever mouse isn't captured
+  if (!pointerLocked && !gameOver && !levelWon) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.52)';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font         = 'bold 18px sans-serif';
+    ctx.fillStyle    = '#fff';
+    ctx.fillText('🖱 Click to capture mouse', CANVAS_W / 2, CANVAS_H / 2);
+    ctx.font      = '13px sans-serif';
+    ctx.fillStyle = '#aaa';
+    ctx.fillText('Press Esc to release', CANVAS_W / 2, CANVAS_H / 2 + 28);
+    ctx.restore();
+  }
+}
+
+function loop(ts) {
+  if (!gameRunning) return;
+  update(ts);
+  draw(ts);
+  requestAnimationFrame(loop);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INTRO SCREEN — animated cinematic before character selection
+// ═══════════════════════════════════════════════════════════════════════════════
+(function () {
+  const introEl = document.getElementById('introScreen');
+  const ic      = document.getElementById('introCanvas');
+  const ictx    = ic.getContext('2d');
+  const IW = 800, IH = 520;
+  ic.width = IW; ic.height = IH;
+
+  let introStartTime = null;
+  let introFinished  = false;
+
+  // ── Static starfield ────────────────────────────────────────────────────────
+  const stars = Array.from({ length: 210 }, () => ({
+    x:  Math.random() * IW,
+    y:  Math.random() * IH,
+    r:  Math.random() * 1.4 + 0.15,
+    ph: Math.random() * Math.PI * 2,
+    sp: 0.5 + Math.random() * 1.1,
+  }));
+
+  // ── Shooting stars ──────────────────────────────────────────────────────────
+  const shooters = [];
+  let nextShooterT = 1.5 + Math.random() * 2;
+
+  function tickShooters(t) {
+    if (t > nextShooterT) {
+      nextShooterT = t + 2.5 + Math.random() * 3.5;
+      shooters.push({
+        startT: t,
+        x0: Math.random() * IW * 0.65,
+        y0: Math.random() * IH * 0.35,
+        vx: 340 + Math.random() * 180,
+        vy: 90  + Math.random() * 130,
+        dur: 0.55 + Math.random() * 0.2,
+        len: 80  + Math.random() * 60,
+      });
+    }
+    for (const s of shooters) {
+      const age   = t - s.startT;
+      if (age > s.dur || age < 0) continue;
+      const life  = 1 - age / s.dur;
+      const px    = s.x0 + s.vx * age;
+      const py    = s.y0 + s.vy * age;
+      const angle = Math.atan2(s.vy, s.vx);
+      ictx.save();
+      ictx.globalAlpha = life * 0.85;
+      const sg = ictx.createLinearGradient(
+        px, py,
+        px - Math.cos(angle) * s.len, py - Math.sin(angle) * s.len);
+      sg.addColorStop(0, 'rgba(255,255,255,0.95)');
+      sg.addColorStop(1, 'rgba(255,255,255,0)');
+      ictx.strokeStyle = sg;
+      ictx.lineWidth   = 1.5;
+      ictx.beginPath();
+      ictx.moveTo(px, py);
+      ictx.lineTo(px - Math.cos(angle) * s.len * life,
+                  py - Math.sin(angle) * s.len * life);
+      ictx.stroke();
+      ictx.restore();
+    }
+  }
+
+  // ── Hero descriptors ────────────────────────────────────────────────────────
+  const HEROES = [
+    { emoji: '🐰', name: 'Rabbit',  role: 'Rogue',   col: '#c080ff',
+      lines: ['A cunning shadow-striker', 'who dances between', 'light and darkness.'] },
+    { emoji: '🐔', name: 'Chicken', role: 'Warrior', col: '#ff9944',
+      lines: ['A steadfast iron wall', 'who stands unyielding', 'against any foe.'] },
+    { emoji: '🐭', name: 'Mouse',   role: 'Mage',    col: '#66aaff',
+      lines: ['A brilliant arcane mind', 'who commands fire', 'with fearless fury.'] },
+    { emoji: '🐯', name: 'Tiger',   role: 'Paladin', col: '#ffdd55',
+      lines: ['A noble guardian', 'who shields the weak', 'with holy light.'] },
+  ];
+
+  const STORY = [
+    'Darkness has consumed the ancient maze...',
+    'Four unlikely heroes answer the call.',
+    'Together, they venture where none dare return.',
+  ];
+
+  // ── End intro → reveal char select ─────────────────────────────────────────
+  function endIntro() {
+    if (introFinished) return;
+    introFinished = true;
+    SFX.bootAndPlayTitle(); // resume context + start title BGM via Promise
+    introEl.style.transition = 'opacity 0.65s ease';
+    introEl.style.opacity    = '0';
+    setTimeout(() => { introEl.style.display = 'none'; }, 680);
+  }
+
+  introEl.addEventListener('click', endIntro);
+  document.addEventListener('keydown', endIntro, { once: true });
+
+  // ── Main draw loop ──────────────────────────────────────────────────────────
+  function drawIntroFrame(ts) {
+    if (!introStartTime) introStartTime = ts;
+    if (introFinished) return;
+    const t = (ts - introStartTime) / 1000;
+
+    // Background
+    ictx.fillStyle = '#000012';
+    ictx.fillRect(0, 0, IW, IH);
+
+    // Stars
+    for (const s of stars) {
+      const tw = 0.28 + 0.72 * Math.abs(Math.sin(s.ph + t * s.sp));
+      ictx.globalAlpha = tw;
+      ictx.fillStyle   = '#fff';
+      ictx.beginPath();
+      ictx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ictx.fill();
+    }
+    ictx.globalAlpha = 1;
+
+    // Shooting stars
+    tickShooters(t);
+
+    // Vignette
+    const vig = ictx.createRadialGradient(IW/2, IH/2, IH * 0.28, IW/2, IH/2, IH * 0.82);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(0,0,20,0.68)');
+    ictx.fillStyle = vig;
+    ictx.fillRect(0, 0, IW, IH);
+
+    // ── Title ──────────────────────────────────────────────────────────────────
+    const titleA = Math.min(1, Math.max(0, (t - 0.3) * 1.3));
+    if (titleA > 0) {
+      ictx.save();
+      ictx.globalAlpha  = titleA;
+      ictx.textAlign    = 'center';
+      ictx.textBaseline = 'top';
+      const gp = 0.6 + 0.4 * Math.sin(t * 2.1);
+      ictx.shadowColor = `rgba(233,69,96,${gp})`;
+      ictx.shadowBlur  = 32;
+      ictx.font        = 'bold 56px "Segoe UI", Arial, sans-serif';
+      ictx.fillStyle   = '#e94560';
+      ictx.fillText('MAZE ADVENTURE', IW / 2, 18);
+      ictx.shadowBlur  = 8;
+      ictx.shadowColor = 'rgba(233,69,96,0.35)';
+      ictx.font        = '16px "Segoe UI", Arial, sans-serif';
+      ictx.fillStyle   = '#999';
+      ictx.fillText('— An Epic Quest Begins —', IW / 2, 82);
+
+      // Divider line
+      const divA = Math.min(1, Math.max(0, (t - 1.1) * 2.5));
+      if (divA > 0) {
+        ictx.globalAlpha = titleA * divA;
+        ictx.shadowBlur  = 0;
+        const dl = ictx.createLinearGradient(IW * 0.08, 0, IW * 0.92, 0);
+        dl.addColorStop(0,   'rgba(233,69,96,0)');
+        dl.addColorStop(0.5, 'rgba(233,69,96,0.55)');
+        dl.addColorStop(1,   'rgba(233,69,96,0)');
+        ictx.strokeStyle = dl;
+        ictx.lineWidth   = 1;
+        ictx.beginPath();
+        ictx.moveTo(IW * 0.08, 112); ictx.lineTo(IW * 0.92, 112);
+        ictx.stroke();
+      }
+      ictx.restore();
+    }
+
+    // ── Character cards ─────────────────────────────────────────────────────────
+    const CW = 166, CH = 162, CGAP = 13;
+    const totalCW = HEROES.length * CW + (HEROES.length - 1) * CGAP;
+    const cx0 = (IW - totalCW) / 2;
+    const cyBase = 122;
+
+    HEROES.forEach((h, i) => {
+      const showT    = 1.7 + i * 0.72;
+      const progress = Math.min(1, Math.max(0, (t - showT) / 0.52));
+      if (progress === 0) return;
+      const eased  = 1 - Math.pow(1 - progress, 3);
+      const slideY = (1 - eased) * 52;
+      const cx     = cx0 + i * (CW + CGAP);
+      const cy     = cyBase + slideY;
+
+      ictx.save();
+      ictx.globalAlpha = progress;
+
+      // Halo glow
+      const halo = ictx.createRadialGradient(cx + CW/2, cy + CH/2, 8, cx + CW/2, cy + CH/2, CW * 0.72);
+      halo.addColorStop(0, h.col + '22');
+      halo.addColorStop(1, 'rgba(0,0,0,0)');
+      ictx.fillStyle = halo;
+      ictx.fillRect(cx - 22, cy - 22, CW + 44, CH + 44);
+
+      // Card body
+      const bg = ictx.createLinearGradient(cx, cy, cx, cy + CH);
+      bg.addColorStop(0, 'rgba(255,255,255,0.11)');
+      bg.addColorStop(1, 'rgba(255,255,255,0.03)');
+      ictx.fillStyle = bg;
+      ictx.beginPath(); ictx.roundRect(cx, cy, CW, CH, 13); ictx.fill();
+      ictx.strokeStyle = h.col + 'aa';
+      ictx.lineWidth   = 1.5;
+      ictx.beginPath(); ictx.roundRect(cx, cy, CW, CH, 13); ictx.stroke();
+
+      // Portrait — real image if loaded, else emoji
+      const PR = 32;
+      const PX = cx + CW / 2, PY = cy + PR + 14;
+      const img = (typeof charImages !== 'undefined') ? charImages[i] : null;
+      if (img && img.complete && img.naturalWidth > 0) {
+        ictx.save();
+        ictx.beginPath(); ictx.arc(PX, PY, PR, 0, Math.PI * 2); ictx.clip();
+        ictx.drawImage(img, PX - PR, PY - PR, PR * 2, PR * 2);
+        ictx.restore();
+        ictx.strokeStyle = h.col + 'cc'; ictx.lineWidth = 2;
+        ictx.beginPath(); ictx.arc(PX, PY, PR, 0, Math.PI * 2); ictx.stroke();
+      } else {
+        ictx.font = '48px serif';
+        ictx.textAlign = 'center'; ictx.textBaseline = 'middle';
+        ictx.fillText(h.emoji, PX, PY);
+      }
+
+      // Name
+      ictx.font = 'bold 14px "Segoe UI", Arial';
+      ictx.fillStyle = '#fff';
+      ictx.textAlign = 'center'; ictx.textBaseline = 'top';
+      ictx.fillText(h.name, cx + CW / 2, cy + PR * 2 + 18);
+
+      // Class
+      ictx.font = 'bold 10px "Segoe UI", Arial';
+      ictx.fillStyle = h.col;
+      ictx.fillText(h.role, cx + CW / 2, cy + PR * 2 + 36);
+
+      // Desc lines
+      ictx.font = '9.5px "Segoe UI", Arial';
+      ictx.fillStyle = '#999';
+      h.lines.forEach((ln, li) => ictx.fillText(ln, cx + CW / 2, cy + PR * 2 + 52 + li * 14));
+
+      // Colour dot
+      ictx.beginPath(); ictx.arc(cx + CW / 2, cy + CH - 12, 3.5, 0, Math.PI * 2);
+      ictx.fillStyle = h.col; ictx.fill();
+
+      ictx.restore();
+    });
+
+    // ── Story text (typewriter) ─────────────────────────────────────────────────
+    const STORY_T0 = 5.1, CPS = 38;
+    let rem = Math.max(0, t - STORY_T0) * CPS;
+    const storyY = cyBase + CH + 22;
+
+    ictx.save();
+    ictx.textAlign = 'center'; ictx.textBaseline = 'top';
+    for (let li = 0; li < STORY.length; li++) {
+      if (rem <= 0) break;
+      const shown    = Math.min(STORY[li].length, Math.ceil(rem));
+      const lineAlpha = Math.min(1, rem / STORY[li].length * 1.5);
+      rem -= STORY[li].length;
+      ictx.globalAlpha = Math.min(1, lineAlpha);
+      ictx.font      = li === 0
+        ? 'italic 15px "Segoe UI", Arial'
+        : '14px "Segoe UI", Arial';
+      ictx.fillStyle = li === 0 ? '#ddd' : '#bbb';
+      ictx.shadowColor = 'rgba(0,0,0,0.8)'; ictx.shadowBlur = 4;
+      ictx.fillText(STORY[li].substring(0, shown), IW / 2, storyY + li * 26);
+      ictx.shadowBlur = 0;
+    }
+    ictx.restore();
+
+    // ── Skip / begin prompt ─────────────────────────────────────────────────────
+    const skipA = Math.min(1, Math.max(0, (t - 8.2) / 1.2))
+                * (0.5 + 0.5 * Math.sin(t * 2.6));
+    if (skipA > 0) {
+      ictx.save();
+      ictx.globalAlpha  = skipA;
+      ictx.textAlign    = 'center';
+      ictx.textBaseline = 'bottom';
+      ictx.font         = '13px "Segoe UI", Arial';
+      ictx.fillStyle    = '#aaa';
+      ictx.fillText('✦  Click or press any key to begin  ✦', IW / 2, IH - 16);
+      ictx.restore();
+    }
+
+    if (t > 13.5) endIntro();
+    requestAnimationFrame(drawIntroFrame);
+  }
+
+  requestAnimationFrame(drawIntroFrame);
+})();
+
+// Attempt autoplay immediately — music starts on page load if browser allows it,
+// otherwise starts automatically on the user's very first interaction.
+SFX.tryAutoplay();
+</script>
+</body>
+</html>
