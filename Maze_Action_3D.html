@@ -937,7 +937,88 @@ const wallTextures = (() => {
     return c;
   }
 
-  return [makeSpaceTex(), makeForestTex(), makeCandyTex()];
+  // ── Arena: Roman travertine stone blocks ──────────────────────────────────
+  function makeArenaTex() {
+    const c = mk(); const g = c.getContext('2d');
+    const BH = 10, BW = 20;
+
+    function drawBlocks(ox, weathered) {
+      // Mortar joints background (dark sandy brown)
+      g.fillStyle = '#7a5a28'; g.fillRect(ox, 0, TS, TS);
+      for (let row = 0; row * BH < TS; row++) {
+        const stagger = (row & 1) * (BW >> 1);
+        for (let col = -1; col * BW < TS + BW; col++) {
+          const bx = ox + col * BW + stagger;
+          const by = row * BH;
+          const hash = ((col * 37 + row * 83) & 0xff + 256) & 0xff;
+          // Warm travertine beige with per-block colour variation
+          const luma = 182 + (hash & 31);
+          g.fillStyle = `rgb(${luma},${Math.round(luma*0.79)},${Math.round(luma*0.47)})`;
+          g.fillRect(bx + 1, by + 1, BW - 2, BH - 2);
+          // Top highlight (chiselled bevel)
+          g.fillStyle = 'rgba(255,240,190,0.28)';
+          g.fillRect(bx + 1, by + 1, BW - 2, 2);
+          // Left highlight
+          g.fillStyle = 'rgba(255,240,190,0.14)';
+          g.fillRect(bx + 1, by + 1, 1, BH - 2);
+          // Bottom shadow
+          g.fillStyle = 'rgba(0,0,0,0.22)';
+          g.fillRect(bx + 1, by + BH - 2, BW - 2, 1);
+          // Right shadow
+          g.fillStyle = 'rgba(0,0,0,0.16)';
+          g.fillRect(bx + BW - 2, by + 1, 1, BH - 3);
+          // Natural stone pitting
+          for (let p = 0; p < 4; p++) {
+            const ph = ((hash * 31 + p * 53) & 0xff);
+            const pw = ((hash * 17 + p * 71) & 0xff);
+            const px = bx + 2 + (ph % (BW - 5));
+            const py = by + 2 + (pw % (BH - 4));
+            g.fillStyle = (hash + p) & 1 ? 'rgba(0,0,0,0.18)' : 'rgba(255,230,160,0.16)';
+            g.fillRect(px, py, 1, 1);
+          }
+          if (weathered && (hash & 3) === 0) {
+            // Age stain on ~25% of blocks
+            g.fillStyle = `rgba(90,55,18,${0.09 + (hash & 15) * 0.006})`;
+            g.fillRect(bx + 1, by + 2, BW - 2, BH - 3);
+          }
+        }
+      }
+    }
+
+    // Variant A (x 0–63): clean blocks
+    drawBlocks(0, false);
+    // Variant B (x 64–127): weathered blocks + arch frieze at top
+    drawBlocks(TS, true);
+
+    // Three rounded arch openings spanning the top of Variant B
+    for (let a = 0; a < 3; a++) {
+      const ax = TS + 1 + a * 21, archH = 8, archW = 18;
+      // Dark arch void
+      g.fillStyle = 'rgba(28,18,6,0.78)';
+      g.beginPath();
+      g.moveTo(ax, archH);
+      g.lineTo(ax, archH >> 1);
+      g.arc(ax + archW / 2, archH >> 1, archW / 2, Math.PI, 0);
+      g.lineTo(ax + archW, archH);
+      g.closePath(); g.fill();
+      // Keystone highlight
+      g.fillStyle = 'rgba(240,210,150,0.45)';
+      g.fillRect(ax + Math.round(archW / 2) - 1, 0, 2, 3);
+    }
+    // Hairline cracks in weathered variant
+    g.strokeStyle = 'rgba(55,32,8,0.42)'; g.lineWidth = 0.6;
+    for (let i = 0; i < 6; i++) {
+      const h2 = (i * 79 + 113) & 0xff;
+      const cx = TS + 4 + (h2 % 54);
+      const cy = 11 + ((h2 * 37 & 0xff) % 42);
+      g.beginPath(); g.moveTo(cx, cy);
+      g.lineTo(cx + ((h2 * 13 & 0xff) % 14) - 7, cy + 4 + (h2 * 7 & 0xff) % 10);
+      g.stroke();
+    }
+    return c;
+  }
+
+  return [makeSpaceTex(), makeForestTex(), makeCandyTex(), makeArenaTex()];
 })();
 
 // ─── Sky panoramas (SKY_W × CANVAS_H/2, one per theme, scrolls with angle) ───
@@ -1200,7 +1281,36 @@ const SFX = (() => {
         mel: [523.3, 784,  1046.5, 987.8,  784, 659.3, 784, 523.3],
       },
     },
-    { // ── 3  Title Screen ───────────────────────────────────────────────────
+    { // ── 3  Arena ───────────────────────────────────────────────────────────
+      // Progression: Em → Am → B → Dm  (Phrygian / Roman battle feel)
+      // drum: true — triggers kick + hihat percussion layer in _bgmTick
+      explore: {
+        bpm: 100, mWave: 'sawtooth', mVol: 0.11, padVol: 0.05, noteDur: 0.52, chordLen: 4,
+        drum: true,
+        chords: [
+          [ 82.4, 123.5, 164.8],  // Em  E2–B2–E3
+          [110,   164.8, 220  ],  // Am  A2–E3–A3
+          [123.5, 185.0, 246.9],  // B   B2–F#3–B3
+          [ 73.4, 110,   146.8],  // Dm  D2–A2–D3
+        ],
+        // Horn fanfare melody — 16 notes, rising & falling
+        mel: [329.6, 440, 523.3, 493.9,  440, 392, 329.6, 392,
+              440,   523.3, 659.3, 587.3, 523.3, 440, 392, 329.6],
+      },
+      combat: {
+        bpm: 140, mWave: 'sawtooth', mVol: 0.13, padVol: 0.06, noteDur: 0.38, chordLen: 2,
+        drum: true,
+        chords: [
+          [ 82.4, 123.5, 164.8],  // Em
+          [110,   164.8, 220  ],  // Am
+          [123.5, 185.0, 246.9],  // B
+          [ 73.4, 110,   146.8],  // Dm
+        ],
+        // Urgent battle fanfare — 8 notes
+        mel: [329.6, 493.9, 659.3, 587.3,  523.3, 440, 329.6, 392],
+      },
+    },
+    { // ── 4  Title Screen ───────────────────────────────────────────────────
       // D natural minor — slow, epic, inviting  Dm → Am → Bb → C (i – v – ♭VI – ♭VII)
       // Explore-only (no combat variant needed for title screen).
       explore: {
@@ -1301,8 +1411,27 @@ const SFX = (() => {
         _osc(bgmOut, f, 'sine', d.padVol * (i === 0 ? 1.5 : 1.0), hold, now));
     }
 
-    // ── Combat bass pulse (square wave root on every beat — drives intensity) ──
-    if (bgmVariant === 'combat') {
+    // ── Drum track (Arena — kick + hihat when d.drum is true) ───────────────
+    if (d.drum) {
+      const isDown = (beatInChord === 0);
+      // Kick drum: pitch-swept sine (thud) + filtered noise (body)
+      _sweep(bgmOut, 85, 38, 'sine', isDown ? 0.38 : 0.24, beat * 0.18, now);
+      _noise(bgmOut, isDown ? 0.17 : 0.10, beat * 0.12, now, 160);
+      // Hihat / rimshot on off-beats (odd beatInChord)
+      if (beatInChord & 1) {
+        const hframes = Math.ceil(ctx.sampleRate * beat * 0.065);
+        const hbuf = ctx.createBuffer(1, hframes, ctx.sampleRate);
+        const hdata = hbuf.getChannelData(0);
+        for (let i = 0; i < hframes; i++) hdata[i] = Math.random() * 2 - 1;
+        const hsrc = ctx.createBufferSource(), hflt = ctx.createBiquadFilter(), hg = ctx.createGain();
+        hflt.type = 'highpass'; hflt.frequency.value = 4200;
+        hg.gain.setValueAtTime(0.09, now); hg.gain.exponentialRampToValueAtTime(0.0001, now + beat * 0.065);
+        hsrc.connect(hflt); hflt.connect(hg); hg.connect(bgmOut);
+        hsrc.start(now); hsrc.stop(now + beat * 0.075);
+      }
+    }
+    // ── Combat bass pulse (square wave root on every beat — non-drum themes) ──
+    if (bgmVariant === 'combat' && !d.drum) {
       _osc(bgmOut, chord[0], 'square', 0.08, beat * 0.22, now);
     }
 
@@ -1320,8 +1449,8 @@ const SFX = (() => {
 
   function stopBgm() { bgmActive = false; clearTimeout(bgmTid); bgmTid = null; }
 
-  // Play the title-screen theme (index 3 in BGM)
-  function startTitleBgm() { startBgm(3, false); }
+  // Play the title-screen theme (index 4 in BGM — Arena is 3)
+  function startTitleBgm() { startBgm(4, false); }
 
   // Called each frame to auto-switch explore ↔ combat music when combatMode changes
   function switchCombatBgm(inCombat) {
@@ -2108,17 +2237,66 @@ function buildMazeGeometry() {
   mazeMeshGroup.add(imA, imB);
 
   // Floor plane
-  const floorMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(COLS, ROWS),
-    new THREE.MeshLambertMaterial({ color: new THREE.Color(theme.floorColor) })
-  );
+  const isArena = THEME_CONFIGS[currentThemeIdx]?.arena;
+  let floorMat;
+  if (isArena) {
+    // Sandy arena floor with deterministic grain
+    const fc = document.createElement('canvas'); fc.width = 64; fc.height = 64;
+    const fg = fc.getContext('2d');
+    fg.fillStyle = '#c8a060'; fg.fillRect(0, 0, 64, 64);
+    for (let i = 0; i < 600; i++) {
+      const gx = (i * 37) % 64, gy = (i * 53) % 64;
+      fg.fillStyle = (i & 1) ? 'rgba(160,110,50,0.20)' : 'rgba(220,180,110,0.16)';
+      fg.fillRect(gx, gy, 1, 1);
+    }
+    // Arena ring marking
+    fg.strokeStyle = 'rgba(140,90,30,0.28)'; fg.lineWidth = 1.2;
+    fg.beginPath(); fg.arc(32, 32, 26, 0, Math.PI * 2); fg.stroke();
+    fg.beginPath(); fg.arc(32, 32, 14, 0, Math.PI * 2); fg.stroke();
+    // Cross dividers
+    fg.strokeStyle = 'rgba(140,90,30,0.18)'; fg.lineWidth = 0.8;
+    fg.beginPath(); fg.moveTo(32, 6); fg.lineTo(32, 58); fg.stroke();
+    fg.beginPath(); fg.moveTo(6, 32); fg.lineTo(58, 32); fg.stroke();
+    const floorTex = new THREE.CanvasTexture(fc);
+    floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+    floorTex.repeat.set(COLS / 5, ROWS / 5);
+    floorMat = new THREE.MeshLambertMaterial({ map: floorTex });
+  } else {
+    floorMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(theme.floorColor) });
+  }
+  const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(COLS, ROWS), floorMat);
   floorMesh.rotation.x = -Math.PI / 2;
   floorMesh.position.set(COLS / 2, 0, ROWS / 2);
   mazeMeshGroup.add(floorMesh);
 
   // Sky background + distance fog
-  threeScene.background = new THREE.Color(theme.ceilColor);
-  threeScene.fog = new THREE.Fog(new THREE.Color(theme.floorColor), 6, 22);
+  if (isArena) {
+    // Mediterranean sky gradient with clouds
+    const sc = document.createElement('canvas'); sc.width = 512; sc.height = 256;
+    const sg = sc.getContext('2d');
+    const skyGrad = sg.createLinearGradient(0, 0, 0, 256);
+    skyGrad.addColorStop(0,    '#1a5f9e');
+    skyGrad.addColorStop(0.55, '#6ab4e0');
+    skyGrad.addColorStop(1,    '#a8d4f0');
+    sg.fillStyle = skyGrad; sg.fillRect(0, 0, 512, 256);
+    // Clouds
+    sg.fillStyle = 'rgba(255,255,255,0.60)';
+    [[90,55,55,20],[260,72,80,18],[400,45,65,15],[160,95,42,13]].forEach(([cx,cy,cw,ch]) => {
+      sg.beginPath(); sg.ellipse(cx, cy, cw, ch, 0, 0, Math.PI*2); sg.fill();
+      sg.beginPath(); sg.ellipse(cx-22, cy+7, cw*0.58, ch*0.70, 0, 0, Math.PI*2); sg.fill();
+      sg.beginPath(); sg.ellipse(cx+24, cy+5, cw*0.52, ch*0.65, 0, 0, Math.PI*2); sg.fill();
+    });
+    // Sun glow (upper right)
+    const sunG = sg.createRadialGradient(430, 28, 0, 430, 28, 65);
+    sunG.addColorStop(0, 'rgba(255,245,210,0.85)');
+    sunG.addColorStop(1, 'rgba(255,245,210,0)');
+    sg.fillStyle = sunG; sg.fillRect(365, 0, 130, 93);
+    threeScene.background = new THREE.CanvasTexture(sc);
+    threeScene.fog = new THREE.Fog(new THREE.Color('#c8a860'), 8, 26);
+  } else {
+    threeScene.background = new THREE.Color(theme.ceilColor);
+    threeScene.fog = new THREE.Fog(new THREE.Color(theme.floorColor), 6, 22);
+  }
 }
 
 function updateCamera() {
@@ -2334,8 +2512,8 @@ function initGame() {
   hideOverlay();
   updateUI();
   updateXpBar();
-  // Arena always starts in combat BGM (Space combat track)
-  config.arena ? SFX.startBgm(0, true) : SFX.startBgm(currentThemeIdx);
+  // Arena always starts in combat BGM (Arena battle track, index 3)
+  config.arena ? SFX.startBgm(3, true) : SFX.startBgm(currentThemeIdx);
 }
 
 function restartGame() {
