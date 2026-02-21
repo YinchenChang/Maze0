@@ -985,36 +985,137 @@ const wallTextures = (() => {
       }
     }
 
-    // Variant A (x 0–63): clean blocks
+    // ── Variant A: clean blocks + torch sconce + meander frieze ────────────────
     drawBlocks(0, false);
-    // Variant B (x 64–127): weathered blocks + arch frieze at top
-    drawBlocks(TS, true);
 
-    // Three rounded arch openings spanning the top of Variant B
-    for (let a = 0; a < 3; a++) {
-      const ax = TS + 1 + a * 21, archH = 8, archW = 18;
-      // Dark arch void
-      g.fillStyle = 'rgba(28,18,6,0.78)';
+    // Torch sconce — centered on the tile
+    const fx = 32, fy = 33;
+    // Warm radial glow (illuminates surrounding stone)
+    const tGlow = g.createRadialGradient(fx, fy - 4, 0, fx, fy, 17);
+    tGlow.addColorStop(0,    'rgba(255,215,100,0.40)');
+    tGlow.addColorStop(0.45, 'rgba(255,140,40,0.14)');
+    tGlow.addColorStop(1,    'rgba(255,60,0,0)');
+    g.fillStyle = tGlow; g.fillRect(fx - 17, fy - 20, 34, 37);
+    // Iron bracket
+    g.fillStyle = '#281508';
+    g.fillRect(fx - 4, fy + 3, 8, 2);   // horizontal arm
+    g.fillRect(fx - 1, fy + 1, 2, 5);   // vertical pin
+    g.fillRect(fx - 2, fy + 4, 4, 1);   // foot
+    // Flame layers (bright core → orange outer)
+    g.fillStyle = 'rgba(255,245,90,0.95)';
+    g.beginPath(); g.ellipse(fx, fy - 2, 2.5, 5, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(255,155,25,0.78)';
+    g.beginPath(); g.ellipse(fx + 0.5, fy, 1.5, 3.5, 0.2, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(255,70,8,0.55)';
+    g.beginPath(); g.ellipse(fx, fy + 1.5, 1, 2, 0, 0, Math.PI * 2); g.fill();
+
+    // Meander (Greek-key) frieze along the bottom 11 px of Variant A
+    const mStep = 8;
+    g.fillStyle = 'rgba(55,32,8,0.32)'; g.fillRect(0, 53, TS, 11);
+    g.strokeStyle = 'rgba(225,190,120,0.52)'; g.lineWidth = 0.8;
+    for (let mx = 0; mx < TS; mx += mStep) {
       g.beginPath();
-      g.moveTo(ax, archH);
-      g.lineTo(ax, archH >> 1);
-      g.arc(ax + archW / 2, archH >> 1, archW / 2, Math.PI, 0);
-      g.lineTo(ax + archW, archH);
-      g.closePath(); g.fill();
-      // Keystone highlight
-      g.fillStyle = 'rgba(240,210,150,0.45)';
-      g.fillRect(ax + Math.round(archW / 2) - 1, 0, 2, 3);
-    }
-    // Hairline cracks in weathered variant
-    g.strokeStyle = 'rgba(55,32,8,0.42)'; g.lineWidth = 0.6;
-    for (let i = 0; i < 6; i++) {
-      const h2 = (i * 79 + 113) & 0xff;
-      const cx = TS + 4 + (h2 % 54);
-      const cy = 11 + ((h2 * 37 & 0xff) % 42);
-      g.beginPath(); g.moveTo(cx, cy);
-      g.lineTo(cx + ((h2 * 13 & 0xff) % 14) - 7, cy + 4 + (h2 * 7 & 0xff) % 10);
+      g.moveTo(mx,          55); g.lineTo(mx + 4,     55);
+      g.lineTo(mx + 4,      58); g.lineTo(mx + 7,     58);
+      g.lineTo(mx + 7,      55); g.lineTo(mx + mStep, 55);
+      g.stroke();
+      g.beginPath();
+      g.moveTo(mx + 1,  61); g.lineTo(mx + 1, 58);
+      g.lineTo(mx + 6,  58); g.lineTo(mx + 6, 61);
       g.stroke();
     }
+    g.strokeStyle = 'rgba(225,190,120,0.28)'; g.lineWidth = 0.5;
+    g.beginPath(); g.moveTo(0, 53); g.lineTo(TS, 53); g.stroke();
+
+    // ── Variant B: weathered blocks + arches + medallion + marks + frieze ──────
+    drawBlocks(TS, true);
+
+    // Three rounded arch openings at the top
+    for (let a = 0; a < 3; a++) {
+      const ax = TS + 1 + a * 21, archH = 9, archW = 18;
+      const acx = ax + archW / 2, acy = archH >> 1;
+      // Dark arch void
+      g.fillStyle = 'rgba(14,9,3,0.84)';
+      g.beginPath();
+      g.moveTo(ax, archH); g.lineTo(ax, acy);
+      g.arc(acx, acy, archW / 2, Math.PI, 0);
+      g.lineTo(ax + archW, archH); g.closePath(); g.fill();
+      // Voussoir wedge lines (arch divided into wedge-stones)
+      g.strokeStyle = 'rgba(185,150,88,0.38)'; g.lineWidth = 0.7;
+      for (let v = -2; v <= 2; v++) {
+        const ang = Math.PI / 2 + v * (Math.PI / 5);
+        const r = archW / 2;
+        g.beginPath();
+        g.moveTo(acx + Math.cos(ang) * (r - 1), acy + Math.sin(ang) * (r - 1));
+        g.lineTo(acx + Math.cos(ang) * (r + 3), acy + Math.sin(ang) * (r + 3));
+        g.stroke();
+      }
+      // Keystone
+      g.fillStyle = 'rgba(245,215,150,0.50)'; g.fillRect(acx - 1, 0, 2, 3);
+      // Column capitals (small carved cap at base of each arch leg)
+      g.fillStyle = 'rgba(215,178,112,0.38)';
+      g.fillRect(ax - 1, archH - 1, 3, 2);
+      g.fillRect(ax + archW - 2, archH - 1, 3, 2);
+    }
+
+    // Carved circular medallion — centered in Variant B at mid-height
+    const mcdx = TS + 32, mcdy = 33, mcdr = 8;
+    g.fillStyle = 'rgba(45,25,8,0.42)';
+    g.beginPath(); g.arc(mcdx, mcdy, mcdr + 1, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(215,178,112,0.58)'; g.lineWidth = 1.0;
+    g.beginPath(); g.arc(mcdx, mcdy, mcdr, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = 'rgba(215,178,112,0.36)'; g.lineWidth = 0.6;
+    g.beginPath(); g.arc(mcdx, mcdy, mcdr - 3, 0, Math.PI * 2); g.stroke();
+    // 8 radial spokes
+    g.strokeStyle = 'rgba(215,178,112,0.42)'; g.lineWidth = 0.6;
+    for (let sp = 0; sp < 8; sp++) {
+      const ang = sp * Math.PI / 4;
+      g.beginPath();
+      g.moveTo(mcdx + Math.cos(ang) * 3,          mcdy + Math.sin(ang) * 3);
+      g.lineTo(mcdx + Math.cos(ang) * (mcdr - 1), mcdy + Math.sin(ang) * (mcdr - 1));
+      g.stroke();
+    }
+    g.fillStyle = 'rgba(230,195,135,0.68)';
+    g.beginPath(); g.arc(mcdx, mcdy, 1.8, 0, Math.PI * 2); g.fill();
+
+    // Hairline cracks (more, deeper — skip medallion area)
+    for (let i = 0; i < 9; i++) {
+      const h2 = (i * 79 + 113) & 0xff;
+      const cx2 = TS + 4 + (h2 % 54);
+      const cy2 = 11 + ((h2 * 37 & 0xff) % 50);
+      if (Math.abs(cx2 - mcdx) < 10 && Math.abs(cy2 - mcdy) < 10) continue;
+      g.strokeStyle = `rgba(38,20,5,${0.28 + (h2 & 15) * 0.012})`; g.lineWidth = 0.6;
+      g.beginPath(); g.moveTo(cx2, cy2);
+      g.lineTo(cx2 + ((h2 * 13 & 0xff) % 16) - 8, cy2 + 4 + (h2 * 7 & 0xff) % 12);
+      g.stroke();
+    }
+
+    // Battle damage — sword-slash marks
+    [[TS + 8, 18, TS + 19, 33], [TS + 42, 13, TS + 52, 25], [TS + 14, 42, TS + 25, 55]].forEach(([x1, y1, x2, y2]) => {
+      if (Math.abs((x1 + x2) / 2 - mcdx) < 9 && Math.abs((y1 + y2) / 2 - mcdy) < 9) return;
+      g.strokeStyle = 'rgba(28,13,4,0.52)'; g.lineWidth = 0.9;
+      g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+      g.strokeStyle = 'rgba(42,22,8,0.28)'; g.lineWidth = 0.6;
+      g.beginPath(); g.moveTo(x1 + 1.5, y1); g.lineTo(x2 + 1.5, y2); g.stroke();
+    });
+
+    // Matching meander frieze on Variant B
+    g.fillStyle = 'rgba(55,32,8,0.28)'; g.fillRect(TS, 53, TS, 11);
+    g.strokeStyle = 'rgba(225,190,120,0.46)'; g.lineWidth = 0.8;
+    for (let mx = TS; mx < TS * 2; mx += mStep) {
+      g.beginPath();
+      g.moveTo(mx,          55); g.lineTo(mx + 4,     55);
+      g.lineTo(mx + 4,      58); g.lineTo(mx + 7,     58);
+      g.lineTo(mx + 7,      55); g.lineTo(mx + mStep, 55);
+      g.stroke();
+      g.beginPath();
+      g.moveTo(mx + 1,  61); g.lineTo(mx + 1, 58);
+      g.lineTo(mx + 6,  58); g.lineTo(mx + 6, 61);
+      g.stroke();
+    }
+    g.strokeStyle = 'rgba(225,190,120,0.24)'; g.lineWidth = 0.5;
+    g.beginPath(); g.moveTo(TS, 53); g.lineTo(TS * 2, 53); g.stroke();
+
     return c;
   }
 
@@ -2340,25 +2441,52 @@ function buildMazeGeometry() {
     skyGrad.addColorStop(0.65, '#06091c');
     skyGrad.addColorStop(1,    '#0d1232');
     sg.fillStyle = skyGrad; sg.fillRect(0, 0, 512, 256);
-    // Stars: 320 dots at deterministic positions, 3 brightness tiers
-    for (let i = 0; i < 320; i++) {
+    // Milky Way band — diagonal soft-glow strip from upper-right to lower-left
+    for (let t = 0; t <= 20; t++) {
+      const bx = 440 - t * 18, by = 5 + t * 9;
+      const br = 22 + Math.sin(t * 1.1) * 8;
+      const mg = sg.createRadialGradient(bx, by, 0, bx, by, br);
+      mg.addColorStop(0, 'rgba(155,170,210,0.045)');
+      mg.addColorStop(1, 'rgba(155,170,210,0)');
+      sg.fillStyle = mg; sg.fillRect(bx - br, by - br, br * 2, br * 2);
+    }
+    // Micro-stars — 350 faint 1×1 rects for background density
+    for (let i = 0; i < 350; i++) {
+      const mx = ((i * 4621 + 1031) * 8191) % 512;
+      const my = ((i * 3571 + 2113) * 7013) % 215;
+      sg.fillStyle = `rgba(215,225,255,${0.07 + (i % 7) * 0.02})`;
+      sg.fillRect(mx, my, 1, 1);
+    }
+    // Main stars — 580 dots, 4 brightness tiers
+    for (let i = 0; i < 580; i++) {
       const sx = ((i * 7907 + 3491) * 1259) % 512;
-      const sy = ((i * 5171 + 2377) * 1481) % 210; // keep in upper 82%
-      const tier = i % 9;
-      const size  = tier === 0 ? 1.6 : tier <= 2 ? 1.1 : 0.75;
-      const alpha = tier === 0 ? 0.95 : tier <= 2 ? 0.75 : 0.35 + (i % 5) * 0.08;
-      const col   = tier === 0 ? `rgba(255,250,220,${alpha})` // warm-white bright
-                  : tier <= 2  ? `rgba(200,215,255,${alpha})` // cool blue-white mid
-                                : `rgba(255,255,255,${alpha})`; // plain dim
+      const sy = ((i * 5171 + 2377) * 1481) % 215;
+      const tier = i % 11;
+      const size  = tier === 0 ? 1.7 : tier <= 2 ? 1.2 : tier <= 5 ? 0.85 : 0.55;
+      const alpha = tier === 0 ? 0.97 : tier <= 2 ? 0.78 : tier <= 5 ? 0.48 : 0.22 + (i % 5) * 0.06;
+      const col   = tier === 0  ? `rgba(255,250,220,${alpha})`  // warm-white bright
+                  : tier <= 2   ? `rgba(200,215,255,${alpha})`  // cool blue-white mid
+                  : tier <= 5   ? `rgba(255,255,255,${alpha})`  // neutral
+                                : `rgba(210,225,250,${alpha})`; // faint blue
       sg.fillStyle = col;
       sg.beginPath(); sg.arc(sx, sy, size, 0, Math.PI * 2); sg.fill();
-      // Soft cross-glow for the brightest stars
+      // 4-point cross spike on the brightest tier
       if (tier === 0) {
-        sg.strokeStyle = `rgba(255,250,220,0.22)`; sg.lineWidth = 0.6;
-        sg.beginPath(); sg.moveTo(sx - 4, sy); sg.lineTo(sx + 4, sy); sg.stroke();
-        sg.beginPath(); sg.moveTo(sx, sy - 4); sg.lineTo(sx, sy + 4); sg.stroke();
+        sg.strokeStyle = `rgba(255,250,220,0.26)`; sg.lineWidth = 0.55;
+        sg.beginPath(); sg.moveTo(sx - 5, sy); sg.lineTo(sx + 5, sy); sg.stroke();
+        sg.beginPath(); sg.moveTo(sx, sy - 5); sg.lineTo(sx, sy + 5); sg.stroke();
       }
     }
+    // Colored accent stars — red giant, blue supergiant, orange, violet
+    [[72, 38, '255,130,80'], [388, 22, '150,185,255'], [215, 62, '255,205,110'], [468, 95, '195,155,255']]
+      .forEach(([sx, sy, rgb]) => {
+        sg.fillStyle = `rgba(${rgb},0.96)`;
+        sg.beginPath(); sg.arc(sx, sy, 1.5, 0, Math.PI * 2); sg.fill();
+        const cg = sg.createRadialGradient(sx, sy, 0, sx, sy, 6);
+        cg.addColorStop(0, `rgba(${rgb},0.42)`);
+        cg.addColorStop(1, `rgba(${rgb},0)`);
+        sg.fillStyle = cg; sg.fillRect(sx - 6, sy - 6, 12, 12);
+      });
     // Sphere rendered from inside — radius 40 fits within far-clip=50
     const skyDome = new THREE.Mesh(
       new THREE.SphereGeometry(40, 24, 12),
