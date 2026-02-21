@@ -478,6 +478,8 @@ const MONSTER_TYPES = [
     baseDamage: 34, abilityName: 'Poison Cloud',   abilityEmoji: '☠️', abilityMaxMp: 30, abilityMpRegen: 3, abilityCooldown: 5000 },
   { name: 'Crimson', src: 'Image/Monster/Monster3_Imp.png',  emoji: '👺', baseHp: 2, speedMult: 0.85, xpMult: 1.8, scoreMult: 1.8,
     baseDamage: 27, abilityName: 'Inferno Strike', abilityEmoji: '🔥', abilityMaxMp: 25, abilityMpRegen: 5, abilityCooldown: 4000 },
+  { name: 'Dragon', src: '', emoji: '🐉', baseHp: 10, speedMult: 1.0, xpMult: 5.0, scoreMult: 5.0,
+    baseDamage: 38, abilityName: 'Fire Breath', abilityEmoji: '🔥', abilityMaxMp: 25, abilityMpRegen: 8, abilityCooldown: 2500, flying: true },
 ];
 
 // ─── Character attack definitions ────────────────────────────────────────────
@@ -677,6 +679,489 @@ function decodeGIF(buf) {
   }
   return frames.length ? frames : null;
 }
+// ─── Fully-procedural 3D walking sprites (Red / Boca / Imp) ─────────────────
+// 8 frames, light-source top-left, cylindrical limbs, specular + rim light.
+function makeProcMonsterFrames(typeIdx) {
+  const SZ = 128, N = 8, DELAY = 90;
+
+  function wp(phase) {
+    const lL = Math.max(0, Math.sin(phase));
+    const rL = Math.max(0, Math.sin(phase + Math.PI));
+    return { lL, rL, bob: -(lL + rL) * 2.2 };
+  }
+
+  // Sphere with 3D radial shading (light top-left)
+  function sph(c, cx, cy, rx, ry, cHi, cMid, cSh, cEdge) {
+    const g = c.createRadialGradient(cx - rx*0.28, cy - ry*0.32, 2, cx, cy, Math.max(rx,ry)*1.05);
+    g.addColorStop(0,    cHi);
+    g.addColorStop(0.35, cMid);
+    g.addColorStop(0.70, cSh);
+    g.addColorStop(1,    cEdge);
+    c.fillStyle = g;
+    c.beginPath(); c.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2); c.fill();
+  }
+
+  // Vertical capsule (top at y=0, length=len) — cylindrical left-to-right gradient
+  // Must be called inside a save/translate block
+  function cap(c, len, r, cHi, cMid, cSh) {
+    const g = c.createLinearGradient(-r, 0, r, 0);
+    g.addColorStop(0,    cSh);
+    g.addColorStop(0.2,  cMid);
+    g.addColorStop(0.55, cHi);
+    g.addColorStop(0.85, cMid);
+    g.addColorStop(1,    cSh);
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(0, r, r, Math.PI, 0);
+    c.lineTo(r, len);
+    c.arc(0, len, r, 0, Math.PI);
+    c.lineTo(-r, r);
+    c.fill();
+    // Specular stripe
+    c.save(); c.globalAlpha = 0.38;
+    const sg = c.createLinearGradient(0, 0, 0, len);
+    sg.addColorStop(0, 'rgba(255,255,255,0.85)');
+    sg.addColorStop(1, 'rgba(255,255,255,0)');
+    c.strokeStyle = sg; c.lineWidth = r * 0.45; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(r*0.3, r*1.3); c.lineTo(r*0.3, len - r*0.6); c.stroke();
+    c.restore();
+  }
+
+  // ── Monster 0 — Red Spook ───────────────────────────────────────────────────
+  function drawRed(c, phase) {
+    const { lL, rL, bob } = wp(phase);
+    const by = 68 + bob;
+    c.lineCap = 'round';
+
+    // Ground shadow
+    c.fillStyle = 'rgba(0,0,0,0.22)';
+    c.beginPath(); c.ellipse(64, 120, 28, 7, 0, 0, Math.PI*2); c.fill();
+
+    // Horns — thick dark outer + brown mid + tan highlight
+    for (const [hx, dir] of [[46,-1],[82,1]]) {
+      c.strokeStyle = '#3a1804'; c.lineWidth = 12; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(hx, by-20); c.quadraticCurveTo(hx+dir*-20, by-52, hx+dir*-8, by-66); c.stroke();
+      c.strokeStyle = '#7a4a18'; c.lineWidth = 8;
+      c.beginPath(); c.moveTo(hx, by-20); c.quadraticCurveTo(hx+dir*-20, by-52, hx+dir*-8, by-66); c.stroke();
+      c.strokeStyle = '#c88a38'; c.lineWidth = 3.5;
+      c.beginPath(); c.moveTo(hx+dir*2, by-22); c.quadraticCurveTo(hx+dir*-14, by-50, hx+dir*-5, by-63); c.stroke();
+    }
+
+    // Arms — back-and-forth swing (foreshorten length to simulate depth)
+    for (const [ax, ang0, sx] of [
+      [34, -0.15, -1],   // left arm
+      [94,  0.15,  1],   // right arm
+    ]) {
+      const sv   = sx * Math.sin(phase);         // signed -1..+1  (+= toward viewer)
+      const aLen = 26 * Math.cos(sv * 0.68);     // foreshorten: 100% → ~77% at extreme
+      const tilt = ang0 + sv * 0.10;             // subtle screen-plane tilt (≤5.7°)
+      c.save(); c.translate(ax, by + 6); c.rotate(tilt);
+      cap(c, aLen, 8, '#f06060', '#cc2222', '#8a0e0e');
+      sph(c, 0, aLen + 4, 9, 8, '#f06060', '#cc2222', '#8a0e0e', '#600808');
+      c.strokeStyle = '#660606'; c.lineWidth = 3.2;
+      for (const ca of [-0.45, 0, 0.45]) {
+        c.save(); c.translate(sx * 2, aLen + 11); c.rotate(ca);
+        c.beginPath(); c.moveTo(0, 0); c.lineTo(0, 9); c.stroke(); c.restore();
+      }
+      c.restore();
+    }
+
+    // Main body — spherical red gradient
+    sph(c, 64, by, 36, 33, '#ff9090', '#dd3030', '#aa1010', '#500404');
+    // Rim light (bottom-right bounce)
+    const rG = c.createRadialGradient(82, by+18, 28, 64, by, 37);
+    rG.addColorStop(0.85, 'rgba(255,120,120,0)');
+    rG.addColorStop(1,    'rgba(220,80,80,0.28)');
+    c.fillStyle = rG; c.beginPath(); c.ellipse(64, by, 36, 33, 0, 0, Math.PI*2); c.fill();
+
+    // Tan belly patch
+    sph(c, 64, by+12, 21, 15, '#e8c88a', '#c88a42', '#9a6424', '#6a3e10');
+
+    // Wide open mouth (characteristic huge gape)
+    c.fillStyle = '#1a0101';
+    c.beginPath(); c.ellipse(64, by+3, 28, 17, 0, 0.06, Math.PI-0.06); c.fill();
+    // 5 upper yellow teeth
+    c.fillStyle = '#e0c428';
+    for (let i = -2; i <= 2; i++) {
+      const tx = 64 + i*11;
+      c.beginPath(); c.rect(tx-4.5, by-4, 9, 14); c.fill();
+      c.fillStyle = '#b09010'; c.beginPath(); c.rect(tx-4.5, by+6, 9, 4); c.fill();
+      c.fillStyle = '#e0c428';
+    }
+    c.fillStyle = '#0e0000';
+    c.beginPath(); c.ellipse(64, by+11, 20, 9, 0, 0, Math.PI); c.fill();
+    // Tongue
+    const tG = c.createRadialGradient(62,by+14,1, 64,by+16,12);
+    tG.addColorStop(0,'#ff8888'); tG.addColorStop(1,'#cc1010');
+    c.fillStyle = tG; c.beginPath(); c.ellipse(64, by+16, 11, 7, 0, 0, Math.PI*2); c.fill();
+    c.fillStyle='rgba(255,180,180,0.5)'; c.beginPath(); c.ellipse(61,by+14,4,3,-0.3,0,Math.PI*2); c.fill();
+    // Drool strings + drops
+    c.strokeStyle='#ddbb20'; c.lineWidth=2.5;
+    for (const [dx,dl] of [[-12,10],[0,12],[12,10]]) {
+      c.beginPath(); c.moveTo(64+dx,by+17); c.lineTo(64+dx,by+17+dl); c.stroke();
+      c.fillStyle='#ddbb20'; c.beginPath(); c.arc(64+dx,by+17+dl,2.2,0,Math.PI*2); c.fill();
+    }
+
+    // Cycloptic eye — large, blue iris, prominent
+    c.fillStyle='#ffffff'; c.beginPath(); c.ellipse(64,by-14,16,13,0,0,Math.PI*2); c.fill();
+    const eyeShG=c.createLinearGradient(64,by-27,64,by-14);
+    eyeShG.addColorStop(0,'rgba(80,0,0,0.32)'); eyeShG.addColorStop(1,'rgba(80,0,0,0)');
+    c.fillStyle=eyeShG; c.beginPath(); c.ellipse(64,by-14,16,13,0,0,Math.PI*2); c.fill();
+    const iG=c.createRadialGradient(63,by-16,1,64,by-14,11);
+    iG.addColorStop(0,'#88ccff'); iG.addColorStop(0.5,'#3388dd'); iG.addColorStop(1,'#1a5a9a');
+    c.fillStyle=iG; c.beginPath(); c.ellipse(64,by-14,11,11,0,0,Math.PI*2); c.fill();
+    c.fillStyle='#060810'; c.beginPath(); c.ellipse(64,by-14,5.5,7,0,0,Math.PI*2); c.fill();
+    c.fillStyle='rgba(255,255,255,0.95)'; c.beginPath(); c.arc(68,by-20,3.5,0,Math.PI*2); c.fill();
+    c.fillStyle='rgba(255,255,255,0.55)'; c.beginPath(); c.arc(73,by-15,1.5,0,Math.PI*2); c.fill();
+    c.strokeStyle='#550000'; c.lineWidth=1.2; c.beginPath(); c.ellipse(64,by-14,16,13,0,0,Math.PI*2); c.stroke();
+
+    // Legs — thick stumps with cylindrical shading, 3-claw feet
+    for (const [lx, lift, sx] of [[48,lL,-1],[80,rL,1]]) {
+      const ang = lift * 0.38 * sx;
+      if (lift < 0.45) {
+        const sa = (0.45-lift)/0.45*0.28;
+        c.fillStyle=`rgba(0,0,0,${sa.toFixed(2)})`;
+        c.beginPath(); c.ellipse(lx + Math.sin(ang)*26, 122, 12, 3.5, 0,0,Math.PI*2); c.fill();
+      }
+      c.save(); c.translate(lx, by+28); c.rotate(ang);
+      cap(c, 26, 9, '#f06060','#cc2222','#8a0e0e');
+      sph(c, 0, 28, 12, 7, '#f06060','#cc2222','#8a0e0e','#600808');
+      c.strokeStyle='#660606'; c.lineWidth=3.5;
+      for (const [ca,cl] of [[-0.5,10],[0,11],[0.5,10]]) {
+        c.save(); c.translate(sx*3,33); c.rotate(ca+sx*0.12);
+        c.beginPath(); c.moveTo(0,0); c.lineTo(0,cl); c.stroke(); c.restore();
+      }
+      c.restore();
+    }
+  }
+
+  // ── Monster 1 — Boca (Green Fluffy) ─────────────────────────────────────────
+  function drawBoca(c, phase) {
+    const { lL, rL, bob } = wp(phase);
+    const by = 70 + bob;
+    c.lineCap = 'round';
+
+    c.fillStyle='rgba(0,0,0,0.22)';
+    c.beginPath(); c.ellipse(64,120,26,7,0,0,Math.PI*2); c.fill();
+
+    // Horns
+    for (const [hx,dir] of [[44,-1],[84,1]]) {
+      c.strokeStyle='#3a2008'; c.lineWidth=11;
+      c.beginPath(); c.moveTo(hx,by-24); c.quadraticCurveTo(hx+dir*-18,by-52,hx+dir*-6,by-62); c.stroke();
+      c.strokeStyle='#7a5228'; c.lineWidth=8;
+      c.beginPath(); c.moveTo(hx,by-24); c.quadraticCurveTo(hx+dir*-18,by-52,hx+dir*-6,by-62); c.stroke();
+      c.strokeStyle='#c89040'; c.lineWidth=3.5;
+      c.beginPath(); c.moveTo(hx+dir*2,by-26); c.quadraticCurveTo(hx+dir*-12,by-50,hx+dir*-4,by-59); c.stroke();
+    }
+
+    // Big paw arms — back-and-forth swing with foreshortening
+    for (const [ax, ang0, sx] of [
+      [30, -0.15, -1],   // left arm
+      [98,  0.15,  1],   // right arm
+    ]) {
+      const sv   = sx * Math.sin(phase);
+      const aLen = 28 * Math.cos(sv * 0.68);
+      const tilt = ang0 + sv * 0.10;
+      c.save(); c.translate(ax, by + 4); c.rotate(tilt);
+      cap(c, aLen, 9, '#7aee7a', '#44cc44', '#186018');
+      sph(c, 0, aLen + 2, 11, 9, '#7aee7a', '#44cc44', '#186018', '#0d480d');
+      c.fillStyle = '#38b838';
+      for (const [tx, dy] of [[-9, 7], [-1, 11], [7, 7]]) {
+        c.beginPath(); c.arc(tx, aLen + dy, 6, 0, Math.PI * 2); c.fill();
+      }
+      c.restore();
+    }
+
+    // Fluffy body: ring of lighter fur bumps at perimeter
+    c.fillStyle='#8cf08a';
+    for (let i=0; i<12; i++) {
+      const a = i/12*Math.PI*2 - Math.PI/2;
+      c.beginPath(); c.arc(64+36*Math.cos(a), by+27*Math.sin(a), 11.5, 0, Math.PI*2); c.fill();
+    }
+    // Main body sphere
+    sph(c, 64,by,32,28,'#8cf08a','#50c850','#2a8c28','#0e4a0e');
+
+    // Wide gaping mouth
+    c.fillStyle='#181818';
+    c.beginPath(); c.ellipse(64,by+8,26,18,0,0.05,Math.PI-0.05); c.fill();
+    c.fillStyle='#eeeeee';
+    for (const tx of [-14,0,14]) {
+      c.beginPath(); c.rect(64+tx-6,by+4,12,13); c.fill();
+      c.fillStyle='#cccccc'; c.beginPath(); c.rect(64+tx-6,by+13,12,4); c.fill();
+      c.fillStyle='#eeeeee';
+    }
+    for (const tx of [-7,7]) { c.beginPath(); c.rect(64+tx-5,by+17,10,9); c.fill(); }
+    c.fillStyle='#cc0808'; c.beginPath(); c.ellipse(64,by+20,14,8,0,0,Math.PI*2); c.fill();
+
+    // TWO huge round eyes — the signature feature
+    for (const [ex,side] of [[42,-1],[86,1]]) {
+      c.fillStyle='rgba(0,60,0,0.28)'; c.beginPath(); c.ellipse(ex,by-9,16,17,0,0,Math.PI*2); c.fill();
+      c.fillStyle='#ffffff'; c.beginPath(); c.ellipse(ex,by-10,15,16,0,0,Math.PI*2); c.fill();
+      const iG=c.createRadialGradient(ex+side,by-12,1,ex,by-10,10);
+      iG.addColorStop(0,'#555555'); iG.addColorStop(0.5,'#222222'); iG.addColorStop(1,'#0a0a0a');
+      c.fillStyle=iG; c.beginPath(); c.ellipse(ex+side,by-10,9,10,0,0,Math.PI*2); c.fill();
+      c.fillStyle='#000000'; c.beginPath(); c.ellipse(ex+side,by-10,5,5.5,0,0,Math.PI*2); c.fill();
+      // Large specular + secondary highlight
+      c.fillStyle='rgba(255,255,255,0.95)'; c.beginPath(); c.arc(ex+side*2+3,by-17,4.5,0,Math.PI*2); c.fill();
+      c.fillStyle='rgba(255,255,255,0.65)'; c.beginPath(); c.arc(ex+side*2+6,by-11,2.2,0,Math.PI*2); c.fill();
+      c.strokeStyle='#1a4a1a'; c.lineWidth=1.5; c.beginPath(); c.ellipse(ex,by-10,15,16,0,0,Math.PI*2); c.stroke();
+    }
+
+    // Legs
+    for (const [lx,lift,sx] of [[48,lL,-1],[80,rL,1]]) {
+      const ang = lift * 0.36 * sx;
+      if (lift < 0.45) {
+        const sa=(0.45-lift)/0.45*0.26;
+        c.fillStyle=`rgba(0,0,0,${sa.toFixed(2)})`;
+        c.beginPath(); c.ellipse(lx+Math.sin(ang)*25,121,11,3.5,0,0,Math.PI*2); c.fill();
+      }
+      c.save(); c.translate(lx,by+24); c.rotate(ang);
+      cap(c,24,9,'#7aee7a','#44cc44','#186018');
+      sph(c,0,26,11,7,'#7aee7a','#44cc44','#186018','#0d480d');
+      c.fillStyle='#38b838';
+      for (const [tx,ty] of [[-8,30],[0,34],[8,30]]) {
+        c.beginPath(); c.arc(tx,ty,5.5,0,Math.PI*2); c.fill();
+      }
+      c.restore();
+    }
+  }
+
+  // ── Monster 2 — Imp / Crimson ─────────────────────────────────────────────
+  function drawImp(c, phase) {
+    const { lL, rL, bob } = wp(phase);
+    const by = 68 + bob;
+    const wf = 0.22 * Math.sin(phase * 2);  // wings flap at double stride rate
+    c.lineCap = 'round';
+
+    c.fillStyle='rgba(0,0,0,0.18)';
+    c.beginPath(); c.ellipse(64,116,34,6,0,0,Math.PI*2); c.fill();
+
+    // Red bat wings (behind body)
+    for (const side of [-1,1]) {
+      c.save(); c.translate(64+side*40, by+2); c.rotate(side*(0.30 + wf*side));
+      c.fillStyle='#550000';
+      c.beginPath(); c.moveTo(0,0); c.lineTo(side*33,-23); c.lineTo(side*29,2); c.lineTo(side*33,18); c.closePath(); c.fill();
+      const wG=c.createLinearGradient(0,0,side*30,0);
+      wG.addColorStop(0,'#e01818'); wG.addColorStop(0.6,'#aa0808'); wG.addColorStop(1,'#770000');
+      c.fillStyle=wG;
+      c.beginPath(); c.moveTo(0,0); c.lineTo(side*31,-21); c.lineTo(side*27,2); c.lineTo(side*31,16); c.closePath(); c.fill();
+      // Wing veins
+      c.strokeStyle='rgba(255,80,80,0.38)'; c.lineWidth=2;
+      c.beginPath(); c.moveTo(0,0); c.lineTo(side*24,-14); c.stroke();
+      c.beginPath(); c.moveTo(0,0); c.lineTo(side*22,12); c.stroke();
+      c.restore();
+    }
+
+    // Body — wide flat metallic silver blob
+    // AO edge
+    c.fillStyle='#383850';
+    c.beginPath(); c.ellipse(64,by,43,30,0,0,Math.PI*2); c.fill();
+    // Main metallic gradient
+    sph(c, 64,by,40,27,'#f0f0ff','#d0d0e8','#8888b0','#484860');
+    // Metallic sheen streak
+    c.save(); c.globalAlpha=0.28;
+    const shG=c.createLinearGradient(36,by-15,76,by-7);
+    shG.addColorStop(0,'rgba(255,255,255,0)');
+    shG.addColorStop(0.5,'rgba(255,255,255,1)');
+    shG.addColorStop(1,'rgba(255,255,255,0)');
+    c.fillStyle=shG; c.beginPath(); c.ellipse(56,by-10,22,8,-0.3,0,Math.PI*2); c.fill();
+    c.restore();
+    // Rim light
+    const rimG=c.createRadialGradient(84,by+14,26,64,by,42);
+    rimG.addColorStop(0.88,'rgba(160,160,220,0)'); rimG.addColorStop(1,'rgba(200,200,255,0.32)');
+    c.fillStyle=rimG; c.beginPath(); c.ellipse(64,by,40,27,0,0,Math.PI*2); c.fill();
+
+    // Angry furrowed brows (thick, pointing inward → center)
+    c.strokeStyle='#dd0808'; c.lineWidth=4.5;
+    c.beginPath(); c.moveTo(34,by-14); c.lineTo(50,by-5); c.stroke();
+    c.beginPath(); c.moveTo(94,by-14); c.lineTo(78,by-5); c.stroke();
+
+    // Glowing red eyes
+    for (const [ex,ey] of [[46,by+1],[82,by+1]]) {
+      // Outer glow
+      c.fillStyle='rgba(220,0,0,0.28)'; c.beginPath(); c.ellipse(ex,ey,15,12,0,0,Math.PI*2); c.fill();
+      // Iris
+      const eG=c.createRadialGradient(ex,ey-1,1,ex,ey,10);
+      eG.addColorStop(0,'#ff4444'); eG.addColorStop(0.5,'#dd0808'); eG.addColorStop(1,'#660000');
+      c.fillStyle=eG; c.beginPath(); c.ellipse(ex,ey,10,8,0,0,Math.PI*2); c.fill();
+      // Vertical slit pupil
+      c.fillStyle='#220000'; c.beginPath(); c.ellipse(ex,ey,2.8,7,0,0,Math.PI*2); c.fill();
+      // Specular
+      c.fillStyle='rgba(255,200,200,0.85)'; c.beginPath(); c.arc(ex+3,ey-3,2.5,0,Math.PI*2); c.fill();
+    }
+
+    // Pink cheek blush
+    c.fillStyle='rgba(255,130,160,0.44)';
+    c.beginPath(); c.ellipse(32,by+10,9,7,0,0,Math.PI*2); c.fill();
+    c.beginPath(); c.ellipse(96,by+10,9,7,0,0,Math.PI*2); c.fill();
+
+    // Small frown
+    c.strokeStyle='#2a2a40'; c.lineWidth=3.5;
+    c.beginPath(); c.moveTo(50,by+14); c.quadraticCurveTo(64,by+22,78,by+14); c.stroke();
+
+    // Tiny bobbing stub legs
+    for (const [lx,lift,sx] of [[50,lL,-1],[78,rL,1]]) {
+      const ang = lift * 0.28 * sx;
+      if (lift < 0.4) {
+        const sa=(0.4-lift)/0.4*0.22;
+        c.fillStyle=`rgba(0,0,0,${sa.toFixed(2)})`;
+        c.beginPath(); c.ellipse(lx+Math.sin(ang)*16,112,9,3,0,0,Math.PI*2); c.fill();
+      }
+      c.save(); c.translate(lx,by+24); c.rotate(ang);
+      cap(c,16,7,'#c0c0dc','#8888b0','#505072');
+      sph(c,0,18,9,5.5,'#c0c0dc','#8888b0','#505072','#383858');
+      c.restore();
+    }
+  }
+
+  const drawFns = [drawRed, drawBoca, drawImp];
+  const drawFn  = drawFns[typeIdx];
+  if (!drawFn) return [];
+  return Array.from({ length: N }, (_, f) => {
+    const cvs = document.createElement('canvas');
+    cvs.width = cvs.height = SZ;
+    drawFn(cvs.getContext('2d'), f / N * Math.PI * 2);
+    return { canvas: cvs, delay: DELAY };
+  });
+}
+
+// ─── Procedural western dragon sprite (8-frame wing-flap animation) ──────────
+function makeDragonFrames() {
+  const SZ = 128, N = 8, DELAY = 80;
+
+  function draw(c, t) {
+    // t: 0 = wings fully up, 1 = wings fully down
+    const wUp = -Math.PI * 0.50, wDn = Math.PI * 0.28;
+    const wAng = wUp + t * (wDn - wUp);
+    const wLen = 48;
+
+    // ── Wings (drawn behind body) ──
+    for (const side of [-1, 1]) {
+      const rx = 64 + side * 19, ry = 66;
+      const cosA = side * Math.cos(wAng), sinA = Math.sin(wAng);
+      const tipX = rx + cosA * wLen, tipY = ry + sinA * wLen;
+      const midX = rx + cosA * wLen * 0.55, midY = ry + sinA * wLen * 0.55;
+      const trailX = rx + side * 9, trailY = ry + 20;
+      const g = c.createLinearGradient(rx, ry, tipX, tipY);
+      g.addColorStop(0, '#0b3515'); g.addColorStop(0.6, '#1a6b2a'); g.addColorStop(1, '#145a22');
+      c.beginPath();
+      c.moveTo(rx, ry);
+      c.quadraticCurveTo(midX, midY, tipX, tipY);
+      c.quadraticCurveTo(midX + side * 5, midY + 12, trailX, trailY);
+      c.closePath();
+      c.fillStyle = g; c.fill();
+      c.strokeStyle = '#092a10'; c.lineWidth = 1.2; c.stroke();
+      // Wing ribs
+      c.strokeStyle = 'rgba(55,170,80,0.45)'; c.lineWidth = 0.75;
+      for (let v = 1; v <= 3; v++) {
+        const vf = v / 3.8;
+        c.beginPath(); c.moveTo(rx, ry);
+        c.lineTo(rx + cosA * wLen * vf + side * 4, ry + sinA * wLen * vf + 9); c.stroke();
+      }
+    }
+
+    // ── Body ──
+    c.fillStyle = '#1a5c28';
+    c.beginPath(); c.ellipse(64, 78, 21, 17, 0, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#0b3515'; c.lineWidth = 1.5; c.stroke();
+    const bg = c.createLinearGradient(64, 70, 64, 94);
+    bg.addColorStop(0, '#5cbf70'); bg.addColorStop(1, '#3d8b4f');
+    c.fillStyle = bg;
+    c.beginPath(); c.ellipse(64, 83, 12, 8, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#0b3515';
+    for (const [sx, sy, sr] of [[55,72,3.5],[64,70,3.5],[73,72,3],[59,79,3],[69,78,3]]) {
+      c.beginPath(); c.arc(sx, sy, sr, 0, Math.PI); c.fill();
+    }
+    // Dorsal spikes on body
+    c.fillStyle = '#2eab45';
+    for (let k = 0; k < 4; k++) {
+      const kx = 55 + k * 6, ky = 62;
+      c.beginPath(); c.moveTo(kx, ky - 6); c.lineTo(kx - 3, ky); c.lineTo(kx + 3, ky); c.closePath(); c.fill();
+    }
+
+    // ── Neck ──
+    c.fillStyle = '#1a5c28';
+    c.beginPath();
+    c.moveTo(56, 63); c.quadraticCurveTo(52, 49, 57, 36);
+    c.lineTo(70, 36); c.quadraticCurveTo(76, 49, 72, 63);
+    c.closePath(); c.fill();
+    c.strokeStyle = '#0b3515'; c.lineWidth = 1; c.stroke();
+    c.fillStyle = '#2eab45';
+    for (let k = 0; k < 4; k++) {
+      const ky = 38 + k * 6;
+      c.beginPath(); c.moveTo(63, ky - 5); c.lineTo(60, ky); c.lineTo(66, ky); c.closePath(); c.fill();
+    }
+
+    // ── Head ──
+    c.fillStyle = '#1a5c28';
+    c.beginPath(); c.ellipse(64, 24, 14, 11, 0, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#0b3515'; c.lineWidth = 1.2; c.stroke();
+    // Snout
+    c.fillStyle = '#1a5c28';
+    c.beginPath(); c.moveTo(52, 26); c.lineTo(40, 31); c.lineTo(45, 22); c.lineTo(52, 22); c.closePath();
+    c.fill(); c.stroke();
+    // Fire glow in open mouth
+    const mg = c.createRadialGradient(43, 29, 0, 43, 29, 9);
+    mg.addColorStop(0, '#ffee00'); mg.addColorStop(0.4, '#ff7700'); mg.addColorStop(1, 'rgba(255,60,0,0)');
+    c.fillStyle = mg;
+    c.beginPath(); c.arc(43, 29, 9, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#0b3515'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(52, 24); c.lineTo(41, 22); c.stroke(); // upper jaw
+    c.beginPath(); c.moveTo(52, 28); c.lineTo(41, 33); c.stroke(); // lower jaw
+    // Horns
+    c.fillStyle = '#7a5c38';
+    c.beginPath(); c.moveTo(60,18); c.lineTo(54,6);  c.lineTo(65,17); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(72,18); c.lineTo(78,6);  c.lineTo(67,17); c.closePath(); c.fill();
+    c.strokeStyle = '#5a3e22'; c.lineWidth = 0.8;
+    c.beginPath(); c.moveTo(60,18); c.lineTo(54,6);  c.lineTo(65,17); c.closePath(); c.stroke();
+    c.beginPath(); c.moveTo(72,18); c.lineTo(78,6);  c.lineTo(67,17); c.closePath(); c.stroke();
+    // Brow ridges
+    c.fillStyle = '#0b3515';
+    c.beginPath(); c.moveTo(55,20); c.lineTo(63,18); c.lineTo(63,21); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(73,20); c.lineTo(65,18); c.lineTo(65,21); c.closePath(); c.fill();
+    // Eye — amber with slit pupil
+    c.fillStyle = '#f0a020';
+    c.beginPath(); c.ellipse(69,23,4.5,3.5,0,0,Math.PI*2); c.fill();
+    c.fillStyle = '#110000';
+    c.beginPath(); c.ellipse(69,23,1.5,3.2,0,0,Math.PI*2); c.fill();
+    c.fillStyle = 'rgba(255,255,200,0.8)';
+    c.beginPath(); c.arc(70.5,22,1.2,0,Math.PI*2); c.fill();
+    // Nostril
+    c.fillStyle = '#0b3515';
+    c.beginPath(); c.ellipse(54,26,1.5,1,0.3,0,Math.PI*2); c.fill();
+
+    // ── Tail ──
+    c.strokeStyle = '#1a5c28'; c.lineCap = 'round'; c.lineWidth = 7;
+    c.beginPath(); c.moveTo(77,90); c.bezierCurveTo(90,96,98,88,104,96); c.stroke();
+    c.lineWidth = 4;
+    c.beginPath(); c.moveTo(104,96); c.quadraticCurveTo(110,104,102,110); c.stroke();
+    c.fillStyle = '#0b3515';
+    c.beginPath(); c.moveTo(102,108); c.lineTo(97,116); c.lineTo(107,116); c.closePath(); c.fill();
+
+    // ── Legs / claws ──
+    c.strokeStyle = '#1a5c28'; c.lineWidth = 4.5;
+    c.beginPath(); c.moveTo(50,88); c.lineTo(43,101); c.stroke();
+    c.lineWidth = 2.5;
+    c.beginPath(); c.moveTo(43,101); c.lineTo(37,99);   c.stroke();
+    c.beginPath(); c.moveTo(43,101); c.lineTo(41,106);  c.stroke();
+    c.beginPath(); c.moveTo(43,101); c.lineTo(47,105);  c.stroke();
+    c.lineWidth = 4.5;
+    c.beginPath(); c.moveTo(78,88); c.lineTo(85,101); c.stroke();
+    c.lineWidth = 2.5;
+    c.beginPath(); c.moveTo(85,101); c.lineTo(79,99);   c.stroke();
+    c.beginPath(); c.moveTo(85,101); c.lineTo(83,106);  c.stroke();
+    c.beginPath(); c.moveTo(85,101); c.lineTo(89,105);  c.stroke();
+  }
+
+  return Array.from({ length: N }, (_, f) => {
+    const t = (Math.sin(f / N * Math.PI * 2) + 1) / 2; // smooth 0→1→0 oscillation
+    const cvs = document.createElement('canvas');
+    cvs.width = cvs.height = SZ;
+    draw(cvs.getContext('2d'), t);
+    return { canvas: cvs, delay: DELAY };
+  });
+}
+
 // ─── Monster animation state ──────────────────────────────────────────────────
 const monsterAnims = MONSTER_TYPES.map(() => ({ frames: [], frameIdx: 0, elapsed: 0 }));
 (function loadMonsterAnims() {
@@ -691,6 +1176,12 @@ const monsterAnims = MONSTER_TYPES.map(() => ({ frames: [], frameIdx: 0, elapsed
   }
   MONSTER_TYPES.forEach((t, i) => {
     const anim = monsterAnims[i];
+    if (t.flying && !t.src) { anim.frames = makeDragonFrames(); return; } // procedural dragon
+    if (t.src.toLowerCase().endsWith('.png') && !t.flying) {
+      // Fully procedural 3D walking sprites — no PNG needed
+      anim.frames = makeProcMonsterFrames(i);
+      return;
+    }
     if (!t.src.toLowerCase().endsWith('.gif')) { fallback(t.src, anim); return; }
     const xhr = new XMLHttpRequest();
     xhr.open('GET', t.src, true);
@@ -2022,6 +2513,19 @@ function spawnArenaWave(wave) {
     monsters.push(m);
     if (threeRenderer) createSprite(m, m.x + 0.5, m.y + 0.5, 0.9, false);
   }
+  // Wave 3+: one dragon enters from the skies
+  if (wave >= 3) {
+    const dragonIdx = MONSTER_TYPES.findIndex(t => t.flying);
+    if (dragonIdx >= 0) {
+      const dm = makeMonster(
+        { x: Math.floor(COLS / 2), y: Math.floor(ROWS / 2), type: dragonIdx },
+        monsterInterval
+      );
+      monsters.push(dm);
+      if (threeRenderer) createSprite(dm, dm.x + 0.5, dm.y + 0.5, 0.9, false);
+      addFloatingText(CANVAS_W / 2, CANVAS_H / 2 - 70, `🐉 A Dragon descends!`, '#ff6600');
+    }
+  }
   level = prevLv;
   addFloatingText(CANVAS_W / 2, CANVAS_H / 2 - 40, `⚔️ Wave ${wave}!`, '#ffd700');
 }
@@ -2054,7 +2558,7 @@ function makeMonster(spawnCell, baseInterval) {
   const t      = MONSTER_TYPES[spawnCell.type ?? 0];
   const hp     = Math.max(1, Math.round(t.baseHp  * (1 + 0.5 * (level - 1))));
   const damage = Math.max(1, Math.round(t.baseDamage * (1 + 0.2 * (level - 1))));
-  return {
+  const base = {
     x: spawnCell.x,  y: spawnCell.y,
     hp, maxHp: hp,
     damage,
@@ -2067,6 +2571,20 @@ function makeMonster(spawnCell, baseInterval) {
     attackInterval: Math.round(1800 / t.speedMult),   // ms between melee hits
     attackCooldownEnd: Math.random() * 1000,           // stagger first hit
   };
+  if (t.flying) {
+    // Dragon orbits the arena center in a breathing ellipse; never engages in melee
+    const orbitAngle = Math.random() * Math.PI * 2;
+    const r = 4 + 2.5 * Math.sin(orbitAngle * 0.55);
+    const cx = Math.floor(COLS / 2), cy = Math.floor(ROWS / 2);
+    base.x           = cx + r * Math.cos(orbitAngle);
+    base.y           = cy + r * Math.sin(orbitAngle);
+    base.flying      = true;
+    base.orbitAngle  = orbitAngle;
+    base.orbitSpeed  = 0.45 + Math.random() * 0.2;  // rad/s
+    base.wy          = 1.2 + 0.15 * Math.sin(orbitAngle * 2.1); // altitude
+    base.attackCooldownEnd = Infinity; // dragons never melee
+  }
+  return base;
 }
 
 function spawnMonsters(spawns) {
@@ -2262,10 +2780,19 @@ function tryAttack(ts) {
   hitCells.push({ x: px, y: py });
 
   // Apply damage to monsters in hit cells
+  // hitSet prevents a flying dragon (float position) from being hit twice
+  // when multiple hit cells are close to its continuous orbit position.
+  const hitSet = new Set();
   for (const cell of hitCells) {
     for (let i = monsters.length - 1; i >= 0; i--) {
       const m = monsters[i];
-      if (m.x !== cell.x || m.y !== cell.y) continue;
+      if (hitSet.has(m)) continue;
+      // Flying monsters occupy continuous float coords — use proximity check
+      const matched = m.flying
+        ? Math.hypot(m.x + 0.5 - (cell.x + 0.5), m.y + 0.5 - (cell.y + 0.5)) < 1.5
+        : (m.x === cell.x && m.y === cell.y);
+      if (!matched) continue;
+      hitSet.add(m);
 
       m.hp -= dmg;
       if (m.hp <= 0) {
@@ -2559,9 +3086,19 @@ function drawSprites2D(ts) {
   // ── Monsters ──
   for (const m of monsters) {
     const wx = m.x + 0.5, wz = m.y + 0.5;
-    if (!hasLOS(wx, wz)) continue;
-    const dist = Math.hypot(wx - player.x, wz - player.y);
-    sprites.push({ wx, wy: 0.5, wz, dist, scale: 2.0, draw(sc, sz) {
+    if (!m.flying && !hasLOS(wx, wz)) continue; // flying dragons always visible
+    const dist  = Math.hypot(wx - player.x, wz - player.y);
+    const wy    = m.flying ? (m.wy ?? 1.2) : 0.5;
+    const scale = m.flying ? 3.2 : 2.0;
+    sprites.push({ wx, wy, wz, dist, scale, draw(sc, sz) {
+      if (m.flying) {
+        // Fire glow halo behind the dragon
+        const g = ctx.createRadialGradient(sc.sx, sc.sy, 0, sc.sx, sc.sy, sz * 0.65);
+        g.addColorStop(0, 'rgba(255,120,0,0.55)');
+        g.addColorStop(1, 'rgba(255,40,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(sc.sx, sc.sy, sz * 0.65, 0, Math.PI * 2); ctx.fill();
+      }
       const anim  = monsterAnims[m.type];
       const fi    = anim?.frameIdx ?? 0;
       const frame = anim?.frames?.[fi];
@@ -2609,7 +3146,16 @@ function drawSprites2D(ts) {
   for (const p of projectiles) {
     const wx = p.x + 0.5, wz = p.y + 0.5;
     const dist = Math.hypot(wx - player.x, wz - player.y);
-    sprites.push({ wx, wy: 0.5, wz, dist, draw(sc, sz) {
+    sprites.push({ wx, wy: p.wy ?? 0.5, wz, dist, draw(sc, sz) {
+      if (p.isFire) {
+        // Fire breath rendered as a radial flame glow
+        const g = ctx.createRadialGradient(sc.sx, sc.sy, 0, sc.sx, sc.sy, sz * 0.7);
+        g.addColorStop(0,   'rgba(255,240,80,0.95)');
+        g.addColorStop(0.4, 'rgba(255,100,0,0.8)');
+        g.addColorStop(1,   'rgba(200,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(sc.sx, sc.sy, sz * 0.7, 0, Math.PI * 2); ctx.fill();
+      }
       ctx.font = `${Math.round(sz * 0.9)}px serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(p.emoji, sc.sx, sc.sy);
@@ -2634,7 +3180,8 @@ function drawSprites2D(ts) {
 function drawMonsterHPBars() {
   for (const m of monsters) {
     if (m.hp >= m.maxHp) continue;
-    const wp = new THREE.Vector3(m.x + 0.5, 1.1, m.y + 0.5);
+    const barY = m.flying ? (m.wy ?? 1.2) + 0.22 : 1.1;
+    const wp = new THREE.Vector3(m.x + 0.5, barY, m.y + 0.5);
     wp.project(threeCamera);
     if (wp.z > 1) continue; // behind camera
     const sx = (wp.x * 0.5 + 0.5) * CANVAS_W;
@@ -2939,7 +3486,17 @@ function update(ts) {
 
   // ── Monster movement — always chases player in real-time ────────────────────
   const hasteMult = (currentFloorMod && currentFloorMod.id === 'haste') ? 0.75 : 1.0;
+  const arenaCenter = { x: Math.floor(COLS / 2), y: Math.floor(ROWS / 2) };
   for (const m of monsters) {
+    if (m.flying) {
+      // Dragon orbits arena center in a sinusoidal breathing ellipse
+      m.orbitAngle += m.orbitSpeed * (dt / 1000);
+      const r = 4 + 2.5 * Math.sin(m.orbitAngle * 0.55);
+      m.x  = arenaCenter.x + r * Math.cos(m.orbitAngle);
+      m.y  = arenaCenter.y + r * Math.sin(m.orbitAngle);
+      m.wy = 1.2 + 0.15 * Math.sin(m.orbitAngle * 2.1); // gentle altitude bob
+      continue;
+    }
     m.moveTimer += dt;
     if (m.moveTimer >= m.moveInterval * hasteMult) {
       m.moveTimer -= m.moveInterval * hasteMult;
@@ -2948,11 +3505,15 @@ function update(ts) {
     }
   }
 
-  // ── combatMode: any monster within 1.5 cells (used for HUD / HP regen) ──────
-  combatMode = monsters.some(m => Math.hypot(m.x + 0.5 - player.x, m.y + 0.5 - player.y) < 1.5);
+  // ── combatMode: any monster within 1.5 cells, or flying dragon within 12 ──────
+  combatMode = monsters.some(m => {
+    const dist = Math.hypot(m.x + 0.5 - player.x, m.y + 0.5 - player.y);
+    return m.flying ? dist < 12 : dist < 1.5;
+  });
 
   // ── Monster melee attacks (real-time, per-monster cooldown) ──────────────────
   for (const m of monsters) {
+    if (m.flying) continue; // dragons never melee
     const dist = Math.hypot(m.x + 0.5 - player.x, m.y + 0.5 - player.y);
     if (dist < 0.9 && ts >= m.attackCooldownEnd) {
       m.attackCooldownEnd = ts + m.attackInterval;
@@ -2962,7 +3523,8 @@ function update(ts) {
 
   // ── Monster abilities (mana regen + spells) ───────────────────────────────────
   for (const m of monsters) {
-    if (Math.hypot(m.x + 0.5 - player.x, m.y + 0.5 - player.y) < 1.5) {
+    const abilDist = m.flying ? 12 : 1.5;
+    if (Math.hypot(m.x + 0.5 - player.x, m.y + 0.5 - player.y) < abilDist) {
       tryMonsterAbility(m, ts, dt);
     }
   }
@@ -2970,14 +3532,16 @@ function update(ts) {
   // ── Projectile movement ───────────────────────────────────────────────────────
   for (const p of projectiles) {
     p.elapsed = (p.elapsed || 0) + dt;
-    while (p.elapsed >= 300) {
-      p.elapsed -= 300;
+    const pInterval = p.interval ?? 300;
+    while (p.elapsed >= pInterval) {
+      p.elapsed -= pInterval;
       const nx = p.x + p.dx, ny = p.y + p.dy;
-      if (!canMove(nx, ny)) { p.dead = true; break; }
+      if (!canMove(Math.floor(nx), Math.floor(ny))) { p.dead = true; break; }
       p.x = nx; p.y = ny;
       if (Math.hypot(p.x + 0.5 - player.x, p.y + 0.5 - player.y) < 0.8) {
         applyDamageToPlayer(p.damage, ts);
-        addFloatingText(CANVAS_W / 2, CANVAS_H / 2 + 36, `💀 Shadow Bolt hit!`, '#aa44ff');
+        addFloatingText(CANVAS_W / 2, CANVAS_H / 2 + 36,
+          p.hitMsg ?? '💀 Shadow Bolt hit!', p.hitColor ?? '#aa44ff');
         p.dead = true; break;
       }
     }
@@ -3171,6 +3735,33 @@ function tryMonsterAbility(m, ts, dt) {
                ring: '🔥', ringN: 4, ringSz: 40, ringR: 140, ringOff: Math.PI / 4 }, ts);
       applyDamageToPlayer(m.damage * 2, ts);
       addFloatingText(CANVAS_W / 2, CANVAS_H / 2 + 50, `🔥 Inferno Strike!`, '#ff6600');
+      break;
+    }
+    case 'Fire Breath': {
+      // 8-directional fire: snap angle to nearest 45° and shoot in that direction
+      const ddx = player.x - m.x, ddy = player.y - m.y;
+      const snapAng = Math.round(Math.atan2(ddy, ddx) / (Math.PI / 4)) * (Math.PI / 4);
+      const fdx = Math.round(Math.cos(snapAng)); // -1, 0, or 1
+      const fdy = Math.round(Math.sin(snapAng));
+      const proj = {
+        x: m.x, y: m.y,
+        dx: fdx, dy: fdy,
+        damage: Math.round(m.damage * 1.25),
+        emoji: '🔥',
+        elapsed: 0,
+        interval: 180,          // faster than Shadow Bolt
+        wy: 0.9,                // flies at mid-to-high altitude
+        isFire: true,
+        hitMsg:   '🔥 Fire Breath hit!',
+        hitColor: '#ff6600',
+      };
+      projectiles.push(proj);
+      if (threeRenderer) createSprite(proj, proj.x + 0.5, proj.y + 0.5, 0.45, false);
+      SFX.abilityInfernoStrike();
+      addVFX({ dur: 380, flashCol: '255,100,0', flashA: 0.38,
+               emoji: '🔥', emojiSz: 80,
+               ring: '🔥', ringN: 6, ringSz: 32, ringR: 130, ringOff: 0 }, ts);
+      addFloatingText(CANVAS_W / 2, CANVAS_H / 2 + 50, `🐉 Fire Breath!`, '#ff6600');
       break;
     }
   }
