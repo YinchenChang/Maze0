@@ -1614,8 +1614,22 @@ let playerHp, playerMaxHp, maxLives;
 let gameOver, levelWon;
 let atPortal = false;
 let arenaWave = 0, arenaWaveDelay = 0; // Arena survival state
-let arenaShooters = [], nextShooterTs = 0; // animated shooting stars
-let prevDrawTs = 0; // for draw() delta-time
+
+// 12 prominent stars, each projected from a fixed 3D direction onto the 2D overlay each frame
+const TWINKLE_STARS = [
+  { theta: 0.3,  phi: 1.20, phase: 0,    period: 1800, size: 2.2 },
+  { theta: 1.2,  phi: 0.68, phase: 400,  period: 2300, size: 1.6 },
+  { theta: 2.0,  phi: 1.38, phase: 900,  period: 1500, size: 2.8 },
+  { theta: 3.1,  phi: 0.90, phase: 200,  period: 2100, size: 1.8 },
+  { theta: 4.0,  phi: 1.10, phase: 600,  period: 1700, size: 2.4 },
+  { theta: 4.9,  phi: 0.60, phase: 1100, period: 2400, size: 1.5 },
+  { theta: 5.7,  phi: 1.28, phase: 300,  period: 1600, size: 2.0 },
+  { theta: 0.9,  phi: 0.52, phase: 750,  period: 2000, size: 1.4 },
+  { theta: 2.6,  phi: 1.00, phase: 500,  period: 1900, size: 2.6 },
+  { theta: 3.7,  phi: 0.78, phase: 1000, period: 2200, size: 1.7 },
+  { theta: 5.2,  phi: 1.48, phase: 150,  period: 1400, size: 3.0 },
+  { theta: 1.7,  phi: 1.12, phase: 850,  period: 2600, size: 1.9 },
+];
 let invincible, invincibleEnd;
 let combatMode = false;       // true while any monster is within melee range
 let combatEnemyTurnEnd = 0;  // timestamp until which it is the enemy's turn
@@ -2345,18 +2359,6 @@ function buildMazeGeometry() {
         sg.beginPath(); sg.moveTo(sx, sy - 4); sg.lineTo(sx, sy + 4); sg.stroke();
       }
     }
-    // Baked shooting-star streaks (static — give instant impression before animated ones appear)
-    [[55, 28, 130, 70], [290, 12, 360, 48], [430, 35, 498, 68],
-     [150, 58, 218, 90], [380, 70, 446, 100]].forEach(([x1, y1, x2, y2]) => {
-      const tr = sg.createLinearGradient(x1, y1, x2, y2);
-      tr.addColorStop(0,   'rgba(255,255,255,0)');
-      tr.addColorStop(0.4, 'rgba(255,255,255,0.80)');
-      tr.addColorStop(1,   'rgba(255,255,255,0.05)');
-      sg.strokeStyle = tr; sg.lineWidth = 1.4;
-      sg.beginPath(); sg.moveTo(x1, y1); sg.lineTo(x2, y2); sg.stroke();
-      sg.fillStyle = 'rgba(255,255,255,0.90)';
-      sg.beginPath(); sg.arc(x2, y2, 1.3, 0, Math.PI * 2); sg.fill();
-    });
     // Sphere rendered from inside — radius 40 fits within far-clip=50
     const skyDome = new THREE.Mesh(
       new THREE.SphereGeometry(40, 24, 12),
@@ -2544,7 +2546,6 @@ function initGame() {
     generateArena();
     arenaWave      = 0;
     arenaWaveDelay = performance.now() + 2500; // 2.5 s grace before first wave
-    arenaShooters  = []; nextShooterTs = 0;
   } else if (config.circular) {
     generateCircularMaze();
   } else {
@@ -2681,7 +2682,9 @@ document.addEventListener('mousemove', e => {
 glCanvas.addEventListener('mousedown', e => {
   if (!pointerLocked || !gameRunning || gameOver || levelWon) return;
   if (e.button === 0) tryAttack(performance.now());
+  if (e.button === 2) useAbility(performance.now());
 });
+glCanvas.addEventListener('contextmenu', e => e.preventDefault());
 
 function readDirection() {
   if (keys['ArrowUp']    || keys['w'] || keys['W']) return [0, -1];
@@ -3459,46 +3462,42 @@ function drawCombatBanner(ts) {
   ctx.restore();
 }
 
-function drawArenaShooters(ts, dt) {
-  if (!THEME_CONFIGS[currentThemeIdx]?.arena || gameOver || !gameRunning) return;
-  // Spawn a new shooter every 3–6 s; cap at 3 visible at once
-  if (ts > nextShooterTs && arenaShooters.length < 3) {
-    const angle = (0.35 + Math.random() * 0.25) * Math.PI; // roughly 63–108° (down-right fan)
-    const spd   = 260 + Math.random() * 200;               // px / s
-    arenaShooters.push({
-      x:    Math.random() * CANVAS_W,
-      y:    10 + Math.random() * (CANVAS_H * 0.30),        // upper 30% of screen
-      vx:   Math.cos(angle) * spd,
-      vy:   Math.sin(angle) * spd,
-      len:  55 + Math.random() * 65,
-      age:  0,
-      life: 800 + Math.random() * 700,                     // ms
-    });
-    nextShooterTs = ts + 3000 + Math.random() * 3500;
-  }
-  arenaShooters = arenaShooters.filter(s => s.age < s.life);
-  if (!arenaShooters.length) return;
+function drawTwinkleStars(ts) {
+  if (!THEME_CONFIGS[currentThemeIdx]?.arena || !threeCamera) return;
   ctx.save();
-  const spd_inv = 1 / Math.SQRT2; // normaliser placeholder — computed per-shooter below
-  for (const s of arenaShooters) {
-    s.x += s.vx * dt / 1000;
-    s.y += s.vy * dt / 1000;
-    s.age += dt;
-    const t = s.age / s.life;
-    const alpha = t < 0.15 ? t / 0.15 : t > 0.75 ? (1 - t) / 0.25 : 1.0;
-    const mag = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
-    const tailX = s.x - s.len * (s.vx / mag);
-    const tailY = s.y - s.len * (s.vy / mag);
-    const grad = ctx.createLinearGradient(tailX, tailY, s.x, s.y);
-    grad.addColorStop(0,   `rgba(255,255,255,0)`);
-    grad.addColorStop(0.6, `rgba(220,235,255,${alpha * 0.55})`);
-    grad.addColorStop(1,   `rgba(255,255,255,${alpha * 0.95})`);
-    ctx.strokeStyle = grad; ctx.lineWidth = 1.8;
-    ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(s.x, s.y); ctx.stroke();
-    // Bright head dot
-    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
-    ctx.beginPath(); ctx.arc(s.x, s.y, 2, 0, Math.PI * 2); ctx.fill();
+  for (const s of TWINKLE_STARS) {
+    // Convert spherical direction to a world-space point on the sky sphere
+    const dx = Math.cos(s.phi) * Math.cos(s.theta);
+    const dy = Math.sin(s.phi);
+    const dz = Math.cos(s.phi) * Math.sin(s.theta);
+    const wp = new THREE.Vector3(
+      threeCamera.position.x + dx * 30,
+      threeCamera.position.y + dy * 30,
+      threeCamera.position.z + dz * 30
+    );
+    const v = wp.project(threeCamera);
+    if (v.z >= 1) continue; // behind camera
+    const sx = (v.x * 0.5 + 0.5) * CANVAS_W;
+    const sy = (-v.y * 0.5 + 0.5) * CANVAS_H;
+    if (sx < -8 || sx > CANVAS_W + 8 || sy > CANVAS_H * 0.62) continue; // skip below horizon
+    // Sinusoidal pulse: alpha and size breathe at star's own period
+    const pulse = (Math.sin((ts + s.phase) / s.period * Math.PI * 2) + 1) / 2;
+    const alpha = 0.28 + pulse * 0.72;
+    const sz    = s.size * (0.55 + pulse * 0.70);
+    // 4-pointed cross glint
+    ctx.globalAlpha = alpha * 0.55;
+    ctx.strokeStyle = 'rgba(180,210,255,1)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(sx - sz * 3.2, sy); ctx.lineTo(sx + sz * 3.2, sy);
+    ctx.moveTo(sx, sy - sz * 3.2); ctx.lineTo(sx, sy + sz * 3.2);
+    ctx.stroke();
+    // Bright centre dot
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(sx, sy, sz * 0.55, 0, Math.PI * 2); ctx.fill();
   }
+  ctx.globalAlpha = 1;
   ctx.restore();
 }
 
@@ -3510,9 +3509,8 @@ function draw(ts) {
   updateCamera();
   threeRenderer.render(threeScene, threeCamera);
   // ── 2D HUD overlay (transparent canvas on top) ───────────────────────────────
-  const _dt = prevDrawTs ? ts - prevDrawTs : 16; prevDrawTs = ts;
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-  drawArenaShooters(ts, _dt);
+  drawTwinkleStars(ts);
   drawSprites2D(ts);   // monsters, items, portal, projectiles drawn on 2D overlay
   drawMonsterHPBars();
   drawMinimap();
