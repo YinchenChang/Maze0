@@ -2192,6 +2192,14 @@ function buildMazeGeometry() {
       }
     });
   }
+  // Dispose previous sky dome (arena only)
+  const prevDome = threeScene.getObjectByName('skyDome');
+  if (prevDome) {
+    prevDome.material?.map?.dispose();
+    prevDome.material?.dispose();
+    prevDome.geometry?.dispose();
+    threeScene.remove(prevDome);
+  }
   mazeMeshGroup = new THREE.Group();
   threeScene.add(mazeMeshGroup);
 
@@ -2271,7 +2279,7 @@ function buildMazeGeometry() {
 
   // Sky background + distance fog
   if (isArena) {
-    // Mediterranean sky gradient with clouds
+    // Mediterranean sky sphere — rotates with the camera (tracks player position in updateCamera)
     const sc = document.createElement('canvas'); sc.width = 512; sc.height = 256;
     const sg = sc.getContext('2d');
     const skyGrad = sg.createLinearGradient(0, 0, 0, 256);
@@ -2279,19 +2287,31 @@ function buildMazeGeometry() {
     skyGrad.addColorStop(0.55, '#6ab4e0');
     skyGrad.addColorStop(1,    '#a8d4f0');
     sg.fillStyle = skyGrad; sg.fillRect(0, 0, 512, 256);
-    // Clouds
+    // Clouds spread around the panorama at different horizontal positions
     sg.fillStyle = 'rgba(255,255,255,0.60)';
     [[90,55,55,20],[260,72,80,18],[400,45,65,15],[160,95,42,13]].forEach(([cx,cy,cw,ch]) => {
       sg.beginPath(); sg.ellipse(cx, cy, cw, ch, 0, 0, Math.PI*2); sg.fill();
       sg.beginPath(); sg.ellipse(cx-22, cy+7, cw*0.58, ch*0.70, 0, 0, Math.PI*2); sg.fill();
       sg.beginPath(); sg.ellipse(cx+24, cy+5, cw*0.52, ch*0.65, 0, 0, Math.PI*2); sg.fill();
     });
-    // Sun glow (upper right)
+    // Sun glow
     const sunG = sg.createRadialGradient(430, 28, 0, 430, 28, 65);
     sunG.addColorStop(0, 'rgba(255,245,210,0.85)');
     sunG.addColorStop(1, 'rgba(255,245,210,0)');
     sg.fillStyle = sunG; sg.fillRect(365, 0, 130, 93);
-    threeScene.background = new THREE.CanvasTexture(sc);
+    // Sphere rendered from inside — radius 40 fits within far-clip=50
+    const skyDome = new THREE.Mesh(
+      new THREE.SphereGeometry(40, 24, 12),
+      new THREE.MeshBasicMaterial({
+        map: new THREE.CanvasTexture(sc),
+        side: THREE.BackSide,
+        depthWrite: false,
+      })
+    );
+    skyDome.name = 'skyDome';
+    skyDome.renderOrder = -1;          // draw before walls so depth test beats it
+    threeScene.add(skyDome);           // updateCamera() moves it to camera position
+    threeScene.background = new THREE.Color('#6ab4e0'); // solid fallback
     threeScene.fog = new THREE.Fog(new THREE.Color('#c8a860'), 8, 26);
   } else {
     threeScene.background = new THREE.Color(theme.ceilColor);
@@ -2306,6 +2326,9 @@ function updateCamera() {
   threeCamera.rotation.set(0, -(player.angle) - Math.PI / 2, 0, 'YXZ');
   const pl = threeScene.getObjectByName('playerLight');
   if (pl) pl.position.copy(threeCamera.position);
+  // Keep sky dome centred on camera so it rotates with the player's view
+  const skyDome = threeScene.getObjectByName('skyDome');
+  if (skyDome) skyDome.position.copy(threeCamera.position);
 }
 
 // ── Sprite lifecycle stubs (3D sprites replaced by 2D canvas drawing) ─────────
