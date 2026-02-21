@@ -2460,8 +2460,8 @@ function drawSprites2D(ts) {
     }});
   }
 
-  // ── Exit portal ──
-  {
+  // ── Exit portal (skipped in arena — no portal exists) ──
+  if (!THEME_CONFIGS[currentThemeIdx]?.arena) {
     const wx = EXIT.x + 0.5, wz = EXIT.y + 0.5;
     const pulse = 0.55 + 0.45 * Math.sin(ts / 400);
     const dist  = Math.hypot(wx - player.x, wz - player.y);
@@ -3072,9 +3072,11 @@ function drawMinimap() {
     }
   }
 
-  // Exit portal
-  ctx.fillStyle = '#9c40ff';
-  ctx.fillRect(MX + EXIT.x * CELL_PX + 1, MY + EXIT.y * CELL_PX + 1, CELL_PX - 1, CELL_PX - 1);
+  // Exit portal (hidden in arena)
+  if (!THEME_CONFIGS[currentThemeIdx]?.arena) {
+    ctx.fillStyle = '#9c40ff';
+    ctx.fillRect(MX + EXIT.x * CELL_PX + 1, MY + EXIT.y * CELL_PX + 1, CELL_PX - 1, CELL_PX - 1);
+  }
 
   // Items (cyan dots)
   ctx.fillStyle = '#00e5ff';
